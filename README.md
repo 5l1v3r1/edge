@@ -2,9 +2,11 @@
 
 This is version 1.1 of EDGE Bioinformatics, a product of collaboration between Los Alamos National Laboratory and the Naval Medical Research Center sponsored by the Defense Threat Reduction Agency.
 
-EDGE is a highly adaptable bioinformatics platform that allows laboratories to quickly analyze and interpret genomic sequence data. The bioinformatics platform allows users to address a wide range of use cases including assay validation and the characterization of novel biological threats, clinical samples, and complex environmental samples.
-
 The EDGE package is available for demonstration and limited use at https://bioedge.lanl.gov/edge_ui/. Follow the "GUI" instructions from our documentation, found at https://edge.readthedocs.org/en/latest/introduction.html.
+
+## Abstract
+
+Edge Bioinformatics is a developmental bioinformatics and data management platform which seeks to supply laboratories with bioinformatics pipelines for analyzing data associated with common samples case goals. Edge Bioinformatics enables sequencing as a solution and forward-deployed situations where human-resources, space, bandwidth, and time are limited. The Edge bioinformatics pipeline was designed based on following USE CASES and specific to illumina sequencing reads. 1. Assay performance adjudication (PCR): Analysis of an existing PCR assay in a genomic context, and automated design of a new assay to resolve conflicting results 2. Clinical presentation with extreme symptoms: Characterization of a known pathogen or co-infection with a. Novel emerging disease outbreak or b. Environmental surveillance
 
 ## Documentation
 
