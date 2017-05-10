@@ -19,9 +19,9 @@ use Digest::MD5 qw(md5_hex);
 use Tie::File;
 
 require "edge_user_session.cgi";
-require "../cluster/clusterWrapper.pl";
+require "$RealBin/../cluster/clusterWrapper.pl";
 ##sample metadata
-require "../metadata_scripts/metadata_api.pl";
+require "$RealBin/../metadata_scripts/metadata_api.pl";
 #END
 
 my $cgi    = CGI->new;
@@ -67,21 +67,23 @@ my $input_dir   = $sys->{edgeui_input};
 my $www_root	= $sys->{edgeui_wwwroot};
 my $um_url      = $sys->{edge_user_management_url};
 my $keep_days	= $sys->{edgeui_proj_store_days};
-$domain       ||= "edgeset.lanl.gov";
+my $runhost	= $sys->{"edge-proj-runhost"} || "$protocol//$domain";
 $um_url	      ||= "$protocol//$domain/userManagement";
 $out_dir      ||= "/tmp"; #for security
 $umSystemStatus ||= $sys->{user_management} if (! @ARGV);
 my $info;
 (my $out_rel_dir = $out_dir) =~ s/$www_root//;
-my $proj_dir    = abs_path("$out_dir/$pname");
+my $proj_dir    = abs_path("$out_dir/$pname");  # resolve symlink
 my $proj_rel_dir = "$out_rel_dir/$pname";
 my $list;
 my $permission;
 my $max_num_jobs = $sys->{"max_num_jobs"};
+
 #cluster
 my $cluster 	= $sys->{cluster};
 my $cluster_job_prefix = $sys->{cluster_job_prefix};
 my $cluster_qsub_options= $sys->{cluster_qsub_options};
+&LoadSGEenv($sys) if ($cluster);
 
 #check projects vital
 my ($vital, $name2pid, $error);
@@ -109,7 +111,7 @@ if ( ($memUsage > 99 or $cpuUsage > 99) and $action ne 'interrupt' and !$cluster
 my $real_name = $pname;
 my $projCode;
 my $projStatus;
-my @projCodes = split /,/,$opt{proj} if ($action eq 'compare');
+my @projCodes = split /,/,$opt{proj} if ($action eq 'compare' || $action eq 'metadata-export');
 my $user_proj_dir = "$input_dir/tmp";
 if ( $umSystemStatus )
 {
@@ -124,7 +126,7 @@ if ( $umSystemStatus )
 	
 	$list = &getUserProjFromDB("owner");
 
-	($real_name,$projCode,$projStatus)= &getProjNameFromDB($pname) if ($action ne 'compare');
+	($real_name,$projCode,$projStatus)= &getProjNameFromDB($pname) if ($action ne 'compare' && $action ne 'metadata-export');
 	
 	$user_proj_dir = "$input_dir/". md5_hex(lc($username))."/MyProjects/$real_name"."_".$pname;
 	#separate permission for future uses. A permission module can be added potentially..
@@ -148,7 +150,7 @@ if ( $umSystemStatus )
 	}
 	#print STDERR "User: $username; Sid: $sid; Valid: $valid; Pname: $pname; Realname: $real_name; List:",Dumper($list),"\n";
 }else{
-	($real_name,$projCode,$projStatus)= &scanProjToList($out_dir,$pname) if ($action ne 'compare');
+	($real_name,$projCode,$projStatus)= &scanProjToList($out_dir,$pname) if ($action ne 'compare' && $action ne 'metadata-export');
 	if (!$real_name){
 		$info->{INFO} = "ERROR: No project with ID $pname.";
 		&returnStatus();
@@ -156,9 +158,18 @@ if ( $umSystemStatus )
 }
 	$proj_dir = abs_path("$out_dir/$projCode") if ( -d "$out_dir/$projCode");
 	$proj_rel_dir = "$out_rel_dir/$projCode" if ( -d "$out_dir/$projCode");
-	
+
+
 if ($action eq 'rename' ){
-	renameProject();
+	renameProject($new_proj_name,$new_proj_desc);
+	#edgeDB: update run name
+	my $runFile = "$proj_dir/metadata_run.txt";
+	if(-e $runFile) {
+		my $runId = `grep -a "edge-run-id=" $runFile | awk -F'=' '{print \$2}'`;
+		chomp $runId;
+		`perl edge_db.cgi run-update "$runId" "$new_proj_name"`;
+	}
+	#edgeDB
 }
 
 if( $action eq 'empty' ){
@@ -197,10 +208,9 @@ if( $action eq 'empty' ){
 			}
 		}
 		closedir(BIN);
-
+		&updateDBProjectStatus($pname,"unstarted") if ($username && $password);
 		$info->{STATUS} = "SUCCESS";
 		$info->{INFO} = "Project output has been emptied.";
-		&updateDBProjectStatus($pname,"unstarted") if ($username && $password);
 	}
 	else{
 		$info->{STATUS} = "FAILURE";
@@ -252,6 +262,15 @@ elsif( $action eq 'delete' ){
 			}
 		}
 	
+		#edgeDB: delete run name
+		my $runFile = "$proj_dir/metadata_run.txt";
+		if(-e $runFile) {
+			my $runId = `grep -a "edge-run-id=" $runFile | awk -F'=' '{print \$2}'`;
+			chomp $runId;
+			`perl edge_db.cgi run-delete "$runId" "$new_proj_name"`;
+		}
+		#edgeDB
+	
 		if ($username && $password){
 			&updateDBProjectStatus($pname,"delete");
 			`rm -f $user_proj_dir`;
@@ -288,6 +307,7 @@ elsif( $action eq 'interrupt' ){
 		if($cluster) {
 			$invalid = clusterDeleteJob($pid);
 			if( !$invalid ){
+				&updateDBProjectStatus($pname,"interrupted") if ($username && $password);
 				`echo "\n*** [$time] EDGE_UI: This project has been interrupted. ***" |tee -a $proj_dir/process.log >> $proj_dir/process_current.log`;
 				$info->{STATUS} = "SUCCESS";
 				$info->{INFO}   = "The cluster job (JOB ID: $pid) has been stopped.";
@@ -295,6 +315,7 @@ elsif( $action eq 'interrupt' ){
 		} else {
 			$invalid = &killProcess($pid);
 			if( !$invalid  || $projStatus eq "unstarted"){
+				&updateDBProjectStatus($pname,"interrupted") if ($username && $password);
 				`echo "\n*** [$time] EDGE_UI: This project has been interrupted. ***" |tee -a $proj_dir/process.log >> $proj_dir/process_current.log`;
 				$info->{STATUS} = "SUCCESS";
 				$info->{INFO}   = "The process (PID: $pid) has been stopped.";
@@ -327,6 +348,7 @@ elsif( $action eq 'rerun' ){
 				$info->{INFO} = "Failed to restart this project. File $cluster_job_script not found.";
 			} else {
 				&updateDBProjectStatus($pname,"running") if ($username && $password);
+				`rm -f $proj_dir/HTML_Report/.complete_report_web`;
 				my ($job_id,$error) = clusterSubmitJob($cluster_job_script,$cluster_qsub_options);
 				if($error) {
 					$info->{INFO} = "Failed to restart this project: $error";
@@ -442,11 +464,11 @@ elsif( $action eq 'tarproj'){
 	my $tarLink = ($username && $password)? "$proj_rel_dir/${real_name}_$pname.zip":"$proj_rel_dir/$real_name.zip";
 	$tarLink =~ s/^\///;
 	$info->{STATUS} = "FAILURE";
-	$info->{INFO}   = "Failed to tar project $real_name $tarLink";
-	chdir $out_dir;
-	if ( ! -e "$proj_dir/.tarfinished" || ! -e $tarLink){
+	$info->{INFO}   = "Failed to tar project $real_name $tarLink $tarFile $tarDir";
+	#chdir $proj_dir;
+	if ( ! -e "$proj_dir/.tarfinished" || ! -e $tarFile){
 		`ln -s $proj_dir $tarDir` if ($username && $password);
-		my $cmd = "zip -r $tarFile ${real_name}_$pname -x \\*gz \\*.sam \\*.bam \\*.fastq; mv $tarFile $proj_dir/ ; touch $proj_dir/.tarfinished ";	
+		my $cmd = "zip -r $tarFile ${real_name}_$pname -x \\*gz \\*.sam \\*.bam \\*.fastq; mv $tarFile $proj_dir/ ; touch $proj_dir/.tarfinished ";
 		my $pid;
 		if (@ARGV){
 			$pid=`$cmd`;
@@ -568,7 +590,6 @@ elsif( $action eq 'getreadsbytaxa'){
 		$reads_fastq="$proj_dir/ReadsBasedAnalysis/$read_type/Taxonomy/$read_type.fastq";
 		$readstaxa_outdir="$proj_dir/ReadsBasedAnalysis/$read_type/Taxonomy/report/1_$read_type/$cptool_for_reads_extract";
 		$relative_taxa_outdir="$proj_rel_dir/ReadsBasedAnalysis/$read_type/Taxonomy/report/1_$read_type/$cptool_for_reads_extract";
-
 	}
 	(my $out_fasta_name = $taxa_for_contig_extract) =~ s/[ .']/_/g;
 	my $extract_from_original_fastq = ($cptool_for_reads_extract =~ /gottcha/i)? " -fastq $reads_fastq " : "";
@@ -578,6 +599,12 @@ elsif( $action eq 'getreadsbytaxa'){
 	if( $cptool_for_reads_extract =~ /gottcha2/i ){
 		$cmd = "$EDGE_HOME/thirdParty/gottcha2/gottcha.py -s $readstaxa_outdir/*.sam -m extract -x $taxa_for_contig_extract -c > $readstaxa_outdir/$out_fasta_name.fastq; cd $readstaxa_outdir; zip $out_fasta_name.fastq.zip $out_fasta_name.fastq; rm $out_fasta_name.fastq";
 	}
+	# PanGIA Only
+	if( $cptool_for_reads_extract =~ /pangia/i ){
+		my $pangia_db_path="$EDGE_HOME/database/PanGIA/";
+		$cmd = "$EDGE_HOME/thirdParty/pangia/pangia.py -dp $pangia_db_path -s $readstaxa_outdir/*.sam -m extract -x $taxa_for_contig_extract -c > $readstaxa_outdir/$out_fasta_name.fastq; cd $readstaxa_outdir; zip $out_fasta_name.fastq.zip $out_fasta_name.fastq; rm $out_fasta_name.fastq";
+	}
+
 	$info->{STATUS} = "FAILURE";
 	$info->{INFO}   = "Failed to extract $taxa_for_contig_extract reads fastq";
 	
@@ -607,7 +634,7 @@ elsif( $action eq 'share' || $action eq 'unshare' ){
 	&shareProject($pname,$proj_dir,$shareEmail,$action);
 	my $owner = $list->{$pname}->{OWNER};
 	if ($action eq 'share'){
-    		my $msg = "$owner has shared EDGE project $real_name to you. You can login to $protocol//$domain/edge_ui/ and see the project. Or click link below.\n\n $protocol//$domain/edge_ui/?proj=$projCode\n";
+    		my $msg = "$owner has shared EDGE project $real_name to you. You can login to $runhost and see the project. Or click link below.\n\n $runhost/?proj=$projCode\n";
 		my $subject = "EDGE project $real_name";
 		&sendMail($username,$shareEmail,$subject,$msg);
 	}
@@ -623,16 +650,19 @@ elsif( $action eq 'publish' || $action eq 'unpublish'){
 	`ln -sf $proj_dir $public_proj_dir` if ($action eq 'publish' && ! -e "$public_proj_dir");
 	`rm -f $public_proj_dir` if ($action eq 'unpublish');
 }
+elsif( $action eq 'disable-project-display' || $action eq 'enable-project-display'){
+	&updateDBProjectDisplay($pname,$action);
+}
 elsif( $action eq 'compare'){
 	my $compare_out_dir = "$out_dir/ProjectComparison/". md5_hex(join ('',@projCodes));
 	my $relative_outdir = "$out_rel_dir/ProjectComparison/". md5_hex(join ('',@projCodes));
 	my $projects = join(",",map { "$out_dir/$_" } @projCodes);
 	$info->{PATH} = "$relative_outdir/compare_project.html";
-	$info->{INFO} = "The comparison result is available <a target='_blank' href=\'$protocol//$domain/$relative_outdir/compare_project.html\'>here</a>";
+	$info->{INFO} = "The comparison result is available <a target='_blank' href=\'$runhost/$relative_outdir/compare_project.html\'>here</a>";
 	if ( -s "$compare_out_dir/compare_project.html"){
 		$info->{STATUS} = "SUCCESS";
 	}else{
-		my $cmd = "$EDGE_HOME/scripts/compare_projects/compare_projects.pl -out_dir $compare_out_dir -projects $projects";
+		my $cmd = "$EDGE_HOME/scripts/compare_projects/compare_projects.pl -html_host $runhost -out_dir $compare_out_dir -projects $projects";
 		my $pid = open COMPARE, "-|", $cmd or die $!;
 		close COMPARE;
 		$pid++;
@@ -658,7 +688,7 @@ elsif( $action eq 'compare'){
 	$blast_params =~ s/-num_threads\s+\d+//;
 	`mkdir -p $blast_out_dir`;
 	$info->{PATH} = "$relative_outdir/$contig_id.blastNT.html";
-	$info->{INFO} = "The comparison result is available <a target='_blank' href=\'$protocol//$domain/edge_ui/$relative_outdir/$contig_id.blastNT.html\'>here</a>";
+	$info->{INFO} = "The comparison result is available <a target='_blank' href=\'$runhost/$relative_outdir/$contig_id.blastNT.html\'>here</a>";
 	if ( -s "$blast_out_dir/$contig_id.blastNT.html"){
 		$info->{STATUS} = "SUCCESS";
 	}else{
@@ -681,22 +711,23 @@ elsif( $action eq 'compare'){
 	$info->{STATUS} = "SUCCESS";
 	$info->{INFO}   = "Project $real_name sample metadata has been deleted.";
 
-	my $metadata = "$proj_dir/sample_metadata.txt";
+	my $metadata = "$proj_dir/metadata_sample.txt";
+	my $traveldata = "$proj_dir/metadata_travels.txt";
+	my $symptomdata = "$proj_dir/metadata_symptoms.txt";
+	
 	if( -e $metadata ){
 		if(-w $metadata) {
-			my $bsveId = `grep -a "bsve_id=" $metadata | awk -F'=' '{print \$2}'`;
-			chomp $bsveId;
 			`rm -f $metadata`;
-			if($bsveId) {#keep bsve_id 
-				open OUT,  ">$metadata";
-				print OUT "bsve_id=$bsveId"."\n";
-				close OUT;
-			}
+			`rm -f $traveldata`;
+			`rm -f $symptomdata`;
 		} else {
 			$info->{STATUS} = "FAILURE";
-			$info->{INFO}   = "Failed to delete the sample metadata.";
+			$info->{INFO}   = "Failed to delete the sample metadata. Permission denied.";
 		}
 	}
+	#delete HTML_Report/.complete_report_web
+	`rm -f $proj_dir/HTML_Report/.complete_report_web`;
+	
 } elsif($action eq 'metadata-bsveadd') { 
 	if( $sys->{user_management} && !$permission->{metadata} ){
 		$info->{INFO} = "ERROR: Permission denied. Only project owner can perform this action.";
@@ -711,6 +742,10 @@ elsif( $action eq 'compare'){
 	}
 
 } elsif($action eq 'metadata-bsveupdate') {
+	if( $sys->{user_management} && !$permission->{metadata} ){
+		$info->{INFO} = "ERROR: Permission denied. Only project owner can perform this action.";
+		&returnStatus();
+	}
 	if(pushSampleMetadata("update", $proj_dir, $sys)) {
 		$info->{STATUS} = "SUCCESS";
 		$info->{INFO}   = "Project $real_name sample metadata has been updated in the BSVE server.";
@@ -719,13 +754,23 @@ elsif( $action eq 'compare'){
 		$info->{INFO}   = "Failed to update the sample metadata in the BSVE server";
 	}
 
-} elsif($action eq 'metadata-bsvedelete') {
-	if(pushSampleMetadata( "delete", $proj_dir, $sys)) {
+} 
+elsif( $action eq 'metadata-export'){
+	my $metadata_out_dir = "$out_dir/sample_metadata_export/". md5_hex(join ('',@projCodes));
+	my $relative_outdir = "$out_rel_dir/sample_metadata_export/". md5_hex(join ('',@projCodes));
+	unlink $metadata_out_dir;
+	my $metadata_out = "$metadata_out_dir/edge_sample_metadata.xlsx";
+
+	my $projects = join(",",map { "$out_dir/$_" } @projCodes);
+	$info->{PATH} = $metadata_out;
+	$info->{INFO} = "The sample metadata is available. Please click <a target='_blank' href=\'$runhost/$relative_outdir/edge_sample_metadata.xlsx\'>here</a> to download it.<br><br>";
+
+	`$EDGE_HOME/scripts/metadata/export_metadata_xlsx.pl -um $umSystemStatus -out $metadata_out -projects $projects`;
+
+	if( !-e "$metadata_out" ){
+		$info->{INFO} = "Error: failed to export sample metadata to .xlsx file";
+	}else{
 		$info->{STATUS} = "SUCCESS";
-		$info->{INFO}   = "Project $real_name sample metadata has been deleted from the BSVE server.";
-	} else {
-		$info->{STATUS} = "FAILURE";
-		$info->{INFO}   = "Failed to delete the sample metadata from the BSVE server.";
 	}
 }
 #END sample metadata
@@ -736,7 +781,7 @@ elsif($action eq 'define-gap-depth'){
 	my $gff_file="$proj_dir/Reference/reference.gff";
 	my $gap_analysisOutfile="$gap_out_dir/Gap_d${gap_depth_cutoff}VSReference.report.txt";
 	my $gap_analysisOutfile_json="$gap_out_dir/Gap_d${gap_depth_cutoff}VSReference.report.json";
-	my $relative_gap_out_dir="$proj_rel_dir/ReferenceBasedAnalysis/readsMappingToRef";
+	my $relative_gap_out_dir="$proj_rel_dir/ReferenceBasedAnalysis/readsMappingToRef";;
 
 	if ( $gap_depth_cutoff == 0 ){
 		$info->{STATUS} = "SUCCESS";
@@ -869,43 +914,63 @@ sub getProjNameFromDB{
 }
 
 sub renameProject{
-	my $project_name = $new_proj_name;
-	my $project_description = $new_proj_desc;
+	my $project_name = shift;
+	my $project_description = shift;
+	$project_description =~ s/(['"])/\\$1/g;
 	my $pnameID = $pname;
 	#adjust txt files. (config.txt and process.log )
 	my $config_file = $proj_dir."/config.txt";
-	tie my @array, 'Tie::File', $config_file or die;
+	my $process_log = $proj_dir."/process.log";
+	my $config_json = $proj_dir."/config.json";
+	#tie my @array, 'Tie::File', $config_file or die;
+	if ($umSystemStatus){
+		my %data = (
+			email => $username,
+			password => $password,
+			project_id => $pnameID,
+			new_project_name => $project_name, 
+			new_description => $project_description,
+		);
 
-	my %data = (
-		email => $username,
-		password => $password,
-		project_id => $pnameID,
-		new_project_name => $project_name, 
-		new_description => $project_description,
-	);
-
-	#Encode the data structure to JSON
-	#        #interacts with the java api to access the sql DB tables
-	my $data = to_json(\%data);
-	#w Set the request parameters
-	my $url = $um_url ."WS/project/update";
-	my $browser = LWP::UserAgent->new;
-	my $req = PUT $url;
-	$req->header('Content-Type' => 'application/json');
-	$req->header('Accept' => 'application/json');
-	#must set this, otherwise, will get 'Content-Length header value was wrong, fixed at...' warning
-	$req->header( "Content-Length" => length($data) );
-	$req->content($data);
-	
-	my $response = $browser->request($req);
-        my $result_json = $response->decoded_content;
-        my $result =  from_json($result_json);
-     	
-	if ($result->{status})
-        {
-        	$info->{STATUS} = "SUCCESS";
-                $info->{INFO} .= " Project has been ${action}d to $project_name.";
-        }
+		#Encode the data structure to JSON
+		##interacts with the java api to access the sql DB tables
+		my $data = to_json(\%data);
+		#w Set the request parameters
+		my $url = $um_url ."WS/project/update";
+		my $browser = LWP::UserAgent->new;
+		my $req = PUT $url;
+		$req->header('Content-Type' => 'application/json');
+		$req->header('Accept' => 'application/json');
+		#must set this, otherwise, will get 'Content-Length header value was wrong, fixed at...' warning
+		$req->header( "Content-Length" => length($data) );
+		$req->content($data);
+		my $response = $browser->request($req);
+		my $result_json = $response->decoded_content;
+		my $result =  from_json($result_json);
+		if ($result->{status})
+		{
+			$info->{STATUS} = "SUCCESS";
+			$info->{INFO} .= " Project has been ${action}d to $project_name.";
+		}
+	}else{
+		if ( -d "$out_dir/$project_name"){
+			$info->{STATUS} = "FAILURE";
+			$info->{INFO} .= " Project name is used.";
+		}else{
+			$info->{STATUS} = "SUCCESS";
+			$info->{INFO} .= " Project has been ${action}d to $project_name.";
+		}
+	}
+	if ($info->{STATUS} eq "SUCCESS"){
+     		system("sed -i.bak 's/projname=[[:graph:]]*/projname=$project_name/; s/projdesc=[[:graph:]]*/projdesc=$project_description/;' $config_file") if ( -e $config_file); 
+     		system("sed -i.bak 's/$real_name/$project_name/; s/projdesc=[[:graph:]]*/projdesc=$project_description/;' $process_log") if ( -e $process_log);
+		system("sed -i.bak 's/edge-proj-name\" : \"[[:graph:]]*\"/edge-proj-name\" : \"$project_name\"/; s/edge-proj-desc\" : \"[[:graph:]]*\"/edge-proj-desc\" : \"$project_description\"/;' $config_json") if ( -e $config_json);
+		if (!$umSystemStatus){
+			 `mv $proj_dir $out_dir/$project_name`;
+			$proj_dir = "$out_dir/$project_name";
+		}
+		unlink "$proj_dir/HTML_Report/.complete_report_web";
+	}
 }		
 
 sub updateDBProjectStatus{
@@ -936,6 +1001,43 @@ sub updateDBProjectStatus{
         {
                 $info->{INFO} .= " Update Project status in database failed.";
         }
+}
+
+sub updateDBProjectDisplay{
+        my $project = shift;
+        my $action = shift;
+	my $display = "yes";
+	if($action eq "disable-project-display") {
+		$display = "no";
+	}
+        my %data = (
+                email => $username,
+                password => $password,
+                project_id => $project,
+                project_display => $display,
+        );
+        # Encode the data structure to JSON
+        my $data = to_json(\%data);
+        #w Set the request parameters
+        my $url = $um_url ."WS/user/updateProjectDisplay";
+        my $browser = LWP::UserAgent->new;
+        my $req = PUT $url;
+        $req->header('Content-Type' => 'application/json');
+        $req->header('Accept' => 'application/json');
+        #must set this, otherwise, will get 'Content-Length header value was wrong, fixed at...' warning
+        $req->header( "Content-Length" => length($data) );
+        $req->content($data);
+
+        my $response = $browser->request($req);
+        my $result_json = $response->decoded_content;
+        my $result =  from_json($result_json);
+        if (! $result->{status})
+        {
+                $info->{INFO} .= " Update Project display in database failed.";
+        } else {
+       		$info->{STATUS} = "SUCCESS";
+                $info->{INFO} .= " Project display has been updated.";
+	}
 }
 
 sub sendMail{
@@ -1169,9 +1271,9 @@ sub cleanProjectForNewConfig {
 	$module_ctl->{"Count Fastq"}                    ->{"general"}       = "$proj_dir/QcReads/countFastq.finished";
 	$module_ctl->{"Quality Trim and Filter"}        ->{"general"}       = "$proj_dir/QcReads/runQC.finished";
 	$module_ctl->{"Host Removal"}                   ->{"general"}       = "$proj_dir/HostRemoval/*/run*.finished"; #  system("rm -f $outputDir/run${prefix}Removal.finished");
+	$module_ctl->{"Host Removal"}                   ->{"stats"}         = "$proj_dir/HostRemoval/HostRemovalStats.pdf";
 	$module_ctl->{"Assembly"}                       ->{"Provided"}      = "$proj_dir/AssemblyBasedAnalysis/processProvideContigs.finished"; 
 	$module_ctl->{"Assembly"}                       ->{"SPAdes"}        = "$proj_dir/AssemblyBasedAnalysis/runSPAdesAssembly.finished"; #system("rm -f $outputDir/runAPAdesAssembly.finished");
-	$module_ctl->{"Assembly"}                       ->{"Idba"}          = "$proj_dir/AssemblyBasedAnalysis/runIdbaAssembly.finished";
 	$module_ctl->{"Assembly"}                       ->{"Idba"}          = "$proj_dir/AssemblyBasedAnalysis/runIdbaAssembly.finished";
 	$module_ctl->{"Assembly"}                       ->{"general"}       = "$proj_dir/AssemblyBasedAnalysis/runAssembly.finished";
 	$module_ctl->{"Reads Mapping To Contigs"}       ->{"general"}       = "$proj_dir/AssemblyBasedAnalysis/readsMappingToContig/runReadsToContig.finished";
@@ -1190,18 +1292,19 @@ sub cleanProjectForNewConfig {
 	$module_ctl->{"Specialty Genes Profiling"}      ->{"general"}       = "$proj_dir/.runSpecialtyGenesProfiling.finished";
 	$module_ctl->{"Specialty Genes Profiling"}      ->{"ReadsBased"}    = "$proj_dir/ReadsBasedAnalysis/SpecialtyGenes/runSpecialtyGenesProfiling.finished";
 	$module_ctl->{"Specialty Genes Profiling"}      ->{"AssemblyBased"} = "$proj_dir/AssemblyBasedAnalysis/SpecialtyGenes/runSpecialtyGenesProfiling.finished";
-	$module_ctl->{"Primer Validation"}              ->{"general"}       = "$proj_dir/AssayCheck/pcrDesign.finished";
+	$module_ctl->{"Primer Validation"}              ->{"general"}       = "$proj_dir/AssayCheck/pcrContigValidation.txt";
 	$module_ctl->{"Primer Design"}                  ->{"general"}       = "$proj_dir/AssayCheck/pcrDesign.finished";
 	$module_ctl->{"Generate JBrowse Tracks"}        ->{"general"}       = "$proj_dir/JBrowse/writeJBrowseInfo.finished";
 	$module_ctl->{"HTML Report"}                    ->{"general"}       = "$proj_dir/HTML_Report/writeHTMLReport.finished";
 
-	my $new_config = &getSysParamFromConfig( "$proj_dir/config.txt" );
-	my $old_config = &getSysParamFromConfig( "$proj_dir/config.txt.bak" );
-
+	my $new_config = &getProjParamFromConfig( "$proj_dir/config.txt" );
+	my $old_config = &getProjParamFromConfig( "$proj_dir/config.txt.bak" );
+	my $diff=0;
 	foreach my $module ( keys %$new_config ){
 		foreach my $param ( keys %{$new_config->{$module}} ){
 			#if one of the parameter in the module changed, reset the whole module
 			if( $new_config->{$module}->{$param} ne $old_config->{$module}->{$param} ){
+				$diff++;
 				foreach my $task ( keys %{$module_ctl->{$module}} ){
 					`rm -f $module_ctl->{$module}->{$task}`;
 				}
@@ -1209,9 +1312,33 @@ sub cleanProjectForNewConfig {
 			}
 		}
 	}
-
-	#remove old config file
-	`rm -f "$proj_dir/config.txt.bak"`;
+	if ($diff){
+		#remove old config file
+		unlink "$proj_dir/config.txt.bak";
+		unlink $module_ctl->{"HTML Report"}->{"general"};
+	}else{
+		$info->{INFO}   =  "There is no changes on the project parameters";
+		&returnStatus();
+	}
 
 	return;
+}
+
+sub getProjParamFromConfig{
+	my $config = shift;
+	my %config_params;
+	open (my $fh, $config) or die $!;
+	my $module;
+	while (<$fh>) {
+		if (/^\#/) { next; }
+		unless (/\w/) { next; }
+		s/^\s+|\s+$//g;
+		chomp;
+		if (/^\[(.*)\]/) { $module=$1; next; }
+		if ( /^([^=]+)=(.*)/ ){
+			$config_params{$module}->{$1}=$2;
+		}
+	}
+	close $fh;
+	return(\%config_params);
 }

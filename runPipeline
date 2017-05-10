@@ -14,12 +14,13 @@ require "$RealBin/edge_ui/metadata_scripts/metadata_api.pl";
 my $workingDir = Cwd::getcwd();
 $ENV{PATH} = "$RealBin:$RealBin/bin/:$RealBin/scripts/:$RealBin/thirdParty/Anaconda2/bin/:$ENV{PATH}";
 $ENV{PERL5LIB} = ($ENV{PERL5LIB})? "$RealBin/lib:$ENV{PERL5LIB}":"$RealBin/lib";
+$ENV{PERL5SHELL} = "bash";
 $ENV{EDGE_HOME} = $RealBin;
 $ENV{HOME} ||= $RealBin;
 
 # unbuffer
 $|=1;
-my $version="1.5.1";
+my $version="2.0.0";
 my $debug=0;
 my @unpairedReadsFile;
 my @pairedReadsFile;
@@ -82,12 +83,12 @@ END
 ## Global hash reference for configurations.
 my $configuration=&readConfig($configFile);
 my $sys = &getSysParams("$RealBin/edge_ui/sys.properties");
+
 &Usage("Missing input files.") unless (@unpairedReadsFile or @pairedReadsFile or $configuration->{'DoSRADownload'} or $configuration->{qiime_input_dir});
 &Usage("Missing output directory path.") unless ($outDir);
 `mkdir -p $outDir`;
 my $abs_outDir=Cwd::abs_path("$outDir");
 unlink "$abs_outDir/HTML_Report/writeHTMLReport.finished";
-unlink "$abs_outDir/.AllDone";
 
 # Capture error log
 my $start_time_string=&getTmpNameByTime;
@@ -98,7 +99,7 @@ open ( my $log_fh, ">>", $process_log_file) or die "Failed to write $process_log
 open(STDERR, '>&', STDOUT) or die "Can't redirect stderr: $!";
 open(STDERR, '>', $error_log_file) or die "Can't redirect stderr: $!";
 $SIG{__WARN__} = sub {print STDERR @_; &lprint  (@_)};
-$SIG{__DIE__} = sub {print STDERR @_; &lprint  (@_);exit 1};
+$SIG{__DIE__} = sub {print STDERR @_; &lprint  (@_);&send_error_notification();exit 1};
 # print whole running command and config file to process log
 &lprint("\nProject Start: $start_time_string\n");
 print $log_fh qx/ps -o args $$/;
@@ -127,6 +128,8 @@ if (length ($project_name) > 30 && $configuration->{DoAnnotation} && $configurat
 
 #&checkDependedPrograms;
 #&makeDirectory;
+my $download_sra_retry_limit=3;
+my $download_sra_retry=0;
 if ($configuration->{'DoSRADownload'})
 {
 	&Download_SRA();
@@ -261,7 +264,7 @@ if ($configuration->{DoAssembly} and $contigFile )
     {
         ($annotationGFF,$annotationFAA,$annotationFNA)=&runAnnotation($contig_for_annotation_file,$tax_kingdom,$annotateProgram,$project_name);
         #phagefinder if Bacteria
-        &phageFinder($annotationGFF,$annotationFAA,$annotationFNA) if ($tax_kingdom ne "Viruses");
+        &phageFinder($annotationGFF,$annotationFAA,$annotationFNA) if ($tax_kingdom ne "Viruses" and $configuration->{DoProPhageDetection});
     }
 
 }
@@ -271,8 +274,6 @@ if ($configuration->{DoSNPtree})
 {
    &SNPtree($QCpairFile,$QCunpairFile,$contigFile,$tax_kingdom);
 }
-
-my ($VF_ORF_GFF, $AR_ORF_GFF);
 
 if ($configuration->{DoReadsSpecialtyGenes} || $configuration->{DoORFsSpecialtyGenes})
 {
@@ -307,9 +308,21 @@ my $conversion_cmd_array_ref = &MergeReport();
 #&updateProjectHTML($outDir,$start_time_string) if ($configuration->{DoHTMLReport});
 
 ##pathogen detection 
-my $taxonomy_summary = "$taxonomy_report_dir/summary.txt";
-if($sys->{edge_pathogen_detection} && -e $taxonomy_summary) {
-	&detectPathogen($taxonomy_summary);
+my $blist = "$taxonomy_report_dir/1_allReads/gottcha2-speDB-b/allReads-gottcha2-speDB-b.list.txt";
+my $vlist = "$taxonomy_report_dir/1_allReads/gottcha2-speDB-v/allReads-gottcha2-speDB-v.list.txt";
+
+if(!-e $blist) {
+   $blist = "$taxonomy_report_dir/1_allReads/gottcha-speDB-b/allReads-gottcha-speDB-b.list.txt";
+}
+if(!-e $vlist) {
+   $vlist = "$taxonomy_report_dir/1_allReads/gottcha-speDB-v/allReads-gottcha-speDB-v.list.txt";
+}
+
+if($sys->{edge_pathogen_detection} && -e $blist && -e $vlist) {
+	&detectPathogen($blist, $vlist);
+}elsif($sys->{edge_pathogen_detection}){
+	&lprint ("File $blist not found\n");
+	&lprint ("File $vlist not found\n");
 }
 ##END pathogen detection
 ##sample metadata submission
@@ -322,11 +335,12 @@ if($sys->{edge_sample_metadata_autosubmit2bsve}) {
 
 &lprint ("Total");
 
-&printRunTime($^T);
+my $total_run_time=&printRunTime($^T);
 
 &lprint ("All Done. \n\n");
 
 close $log_fh;
+`echo "$start_time_string\t$total_run_time" >> $abs_outDir/.AllDone`;
 
 my $mail_subject= "EDGE project $project_name complete";
 my $recipient = $configuration->{projowner};
@@ -371,11 +385,11 @@ sub runSpecialtyGenesProfiling {
     my $pctlength = $configuration->{ShortBREDMinPercLength} || "0.95"; 
     my $time=time();
     my $VF_markers = "$RealBin/database/ShortBRED/VF/VFDB_9aa_markers.faa";
-	my $AR_markers = "$RealBin/database/ShortBRED/AR/ShortBRED_ABR_101bp_markers.faa";
-	my $AR_metadata = "$RealBin/database/ShortBRED/AR/ShortBRED_ABR_Metadata.tab";
-	my $specialtyGenesDone = 0;
+    my $AR_markers = "$RealBin/database/ShortBRED/AR/ShortBRED_ABR_101bp_markers.faa";
+    my $AR_metadata = "$RealBin/database/ShortBRED/AR/ShortBRED_ABR_Metadata.tab";
+    my $specialtyGenesDone = 0;
     my $VFDB_ini="$RealBin/scripts/specialty_genes/mysql.ini";
-	if ($noColorLog)
+    if ($noColorLog)
     {
         &lprint ("[Specialty Genes Profiling]\n");
     }
@@ -383,12 +397,12 @@ sub runSpecialtyGenesProfiling {
     {
         &lprint (colored ("[Specialty Genes Profiling]\n",'yellow'));
     }
-	if ($configuration->{DoReadsSpecialtyGenes} and $configuration->{DoORFsSpecialtyGenes})
+    if ($configuration->{DoReadsSpecialtyGenes} and $configuration->{DoORFsSpecialtyGenes})
     {
-		if (-e "$outDir/ReadsBasedAnalysis/SpecialtyGenes/runSpecialtyGenesProfiling.finished" and -e "$outDir/AssemblyBasedAnalysis/SpecialtyGenes/runSpecialtyGenesProfiling.finished")
-		{
-			$specialtyGenesDone = 1;
-		}
+	if (-e "$outDir/ReadsBasedAnalysis/SpecialtyGenes/runSpecialtyGenesProfiling.finished" and -e "$outDir/AssemblyBasedAnalysis/SpecialtyGenes/runSpecialtyGenesProfiling.finished")
+	{
+		$specialtyGenesDone = 1;
+	}
     }  
 	elsif ($configuration->{DoReadsSpecialtyGenes} and -e "$outDir/ReadsBasedAnalysis/SpecialtyGenes/runSpecialtyGenesProfiling.finished")
 	{
@@ -406,18 +420,17 @@ sub runSpecialtyGenesProfiling {
     unlink "$outDir/JBrowse/writeJBrowseInfo.finished";
     my $wgs_reads = "$pair_read " if ($pair_read);
     $wgs_reads .= "$single_end_read " if ( -s $single_end_read);
-   print $sys->{VFDB_dbuser}; 
-   if ( !-e "$VFDB_ini"){
-		open (my $fh_ini,">$VFDB_ini") or  die "Cannot write to $VFDB_ini\n";
-		print $fh_ini "[LOGIN]\n";
-		print $fh_ini "username = ".$sys->{VFDB_dbuser}."\n";
-		print $fh_ini "password = ".$sys->{VFDB_dbpasswd}."\n";
-		print $fh_ini "host = ".$sys->{VFDB_dbhost}."\n";
-		print $fh_ini "port = ".$sys->{VFDB_dbport}."\n";
-		print $fh_ini "database = ".$sys->{VFDB_dbname}."\n";
-		close $fh_ini;
-	}
+    if ( !-e "$VFDB_ini"){
+        open (my $fh_ini,">$VFDB_ini") or  die "Cannot write to $VFDB_ini\n";
+        print $fh_ini "[LOGIN]\n";
+        print $fh_ini "username=".$sys->{VFDB_dbuser}."\n";
+        print $fh_ini "password=".$sys->{VFDB_dbpasswd}."\n";
+        print $fh_ini "host=".$sys->{VFDB_dbhost}."\n";
+        print $fh_ini "port=".$sys->{VFDB_dbport}."\n";
+        print $fh_ini "database=".$sys->{VFDB_dbname}."\n";
+        close $fh_ini;
 
+    }
 	# Reads Based Analysis
 	if ($configuration->{DoReadsSpecialtyGenes} and ! -e "$outDir/ReadsBasedAnalysis/SpecialtyGenes/runSpecialtyGenesProfiling.finished")
     {
@@ -446,11 +459,12 @@ sub runSpecialtyGenesProfiling {
 
 	# ORF Based Analysis
 	if ($configuration->{DoORFsSpecialtyGenes} and -s $annotationFAA and -s $annotationGFF and ! -e "$outDir/AssemblyBasedAnalysis/SpecialtyGenes/runSpecialtyGenesProfiling.finished")
-    {
+	{
        	my $outputDir= "$outDir/AssemblyBasedAnalysis/SpecialtyGenes";
        	my $log = "$outputDir/log.txt";
        	my $cmd;
 	`mkdir -p $outputDir`;
+		
 		
 	# AR
 		$cmd = "cd $outputDir; $rgi_PATH/rgi -i $annotationFAA -t protein -o ${project_name}_AR_genes_rgi -n $numCPU 1>>$log 2>&1";
@@ -459,10 +473,7 @@ sub runSpecialtyGenesProfiling {
 		$cmd = "python $RealBin/scripts/specialty_genes/ProcessARRGIJson.py -i $outputDir/${project_name}_AR_genes_rgi.json -g $annotationGFF -p $outputDir/${project_name}_AR_genes_rgi 1>>$log 2>&1";
 			&lprint ("	Running \n $cmd \n");
 			&executeCommand($cmd);
-		if (-e "$outputDir/${project_name}_AR_genes_rgi.gff")
-		{
-			$AR_ORF_GFF = "$outputDir/${project_name}_AR_genes_rgi.gff";
-		}
+	
 	# VF
        $cmd = "$ShortBRED_PATH/shortbred_quantify.py --genome $annotationFAA --markers $VF_markers --results $outputDir/${project_name}_VF_genes_ShortBRED.txt --tmp $outputDir/${project_name}_VF_genes_tmp --marker_results $outputDir/${project_name}_VF_genes_markers.txt --SBhits $outputDir/${project_name}_VF_genes_SBhits.txt --search_program $search_tool --id $identity --threads $numCPU 1>>$log 2>&1";
        		&lprint ("  Running \n  $cmd \n");
@@ -470,11 +481,7 @@ sub runSpecialtyGenesProfiling {
        $cmd = "python $RealBin/scripts/specialty_genes/ProcessVFSBResults.py -t orf -m $VFDB_ini -i $outputDir/${project_name}_VF_genes_ShortBRED.txt -s $outputDir/${project_name}_VF_genes_SBhits.txt -g $annotationGFF -p $outputDir/${project_name}_VF_genes_ShortBRED 1>>$log 2>&1";
       	 	&lprint ("  Running \n  $cmd \n");
        		&executeCommand($cmd);
-       if (-e "$outputDir/${project_name}_VF_genes_ShortBRED.gff")
-	   {
-			$VF_ORF_GFF = "$outputDir/${project_name}_VF_genes_ShortBRED.gff";
-	   }
-	   system("touch $outputDir/runSpecialtyGenesProfiling.finished");
+       	system("touch $outputDir/runSpecialtyGenesProfiling.finished");
     }
     
     &printRunTime($time);
@@ -681,7 +688,8 @@ sub Contigs_taxonomyAssignment
     $cmd="$RealBin/scripts/contig_classification_plot.R $cov_table $tax_assignments_result $prefix";
     &lprint (" Running \n $cmd\n");
     &executeCommand($cmd);
-	&executeCommand("perl $RealBin/scripts/tab2Json_for_dataTable.pl -project_dir $abs_outDir -mode contig $tax_lca_result > $prefix.ctg_class.LCA.json");
+    my $row_limit = $sys->{edgeui_result_table_rows} || 3000;
+    &executeCommand("perl $RealBin/scripts/tab2Json_for_dataTable.pl -project_dir $abs_outDir -mode contig -limit $row_limit $tax_lca_result > $prefix.ctg_class.LCA.json");
     chdir $workingDir;
     &printRunTime($time);
     system("touch $outputDir/ContigsTaxonomy.finished");
@@ -716,11 +724,14 @@ sub Download_SRA
     $cmd .= " 1>$log 2>&1 ";
     &lprint ("  Running \n  $cmd \n");
     eval {system($cmd) };
-    &read_SRAD_Download_dir($outputDir);
-
+    $download_sra_retry++;
     &printRunTime($time);
-    system("touch $outputDir/DownloadSRA.finished");
-    return 0;	
+    my $flag=&read_SRAD_Download_dir($outputDir);
+
+    unless ($flag){
+        system("touch $outputDir/DownloadSRA.finished");
+        return 0;
+    }	
 }
 
 sub read_SRAD_Download_dir
@@ -729,24 +740,30 @@ sub read_SRAD_Download_dir
     opendir(my $sra_dir_fh,$dir) or die "Cannot read $dir\n";
     my @files = sort grep {/fastq/} readdir($sra_dir_fh);
     closedir $sra_dir_fh;
-    if (`grep -i -a "Error" $dir/log.txt`){
-        &lprint("The SRA download failed.\n");
-	exit;
-    }elsif (!@files && !@pairedReadsFile && !@unpairedReadsFile)
-    {
-        &lprint("No fastq file from the SRA download. try again\n");
-	&Download_SRA();
-	return;
-        #die "No input\n";
+    if (`grep -i -a "ERROR" $dir/log.txt`){
+        &lprint("SRA download failed.\n");
+        exit(1);
+    }elsif (!@files && !@pairedReadsFile && !@unpairedReadsFile){
+        if( $download_sra_retry <= $download_sra_retry_limit){
+            &lprint("No fastq file from the SRA download. try again\n");
+            &Download_SRA();
+            return 1;
+        }else{
+            die "SRA download failed.\n";
+        }
     }
     my %pair;
     if (scalar(@files)==1)
     {
+        my $rc=&check_sra_filesize("$dir/$files[0]");
+        return 1 if $rc;
         push @unpairedReadsFile, "$dir/$files[0]";
     }else
     {
         foreach (@files)
         {
+            my $rc=&check_sra_filesize("$dir/$_");
+            return 1 if $rc;
             if (/(\S+)_?.?[12]/)
             {
                 push @{$pair{$1}}, "$dir/$_";
@@ -763,6 +780,24 @@ sub read_SRAD_Download_dir
             push @unpairedReadsFile, @{$pair{$sample}};
         }
     }
+}
+
+sub check_sra_filesize
+{
+   my $file = shift;
+   my $size = -s $file;
+   my $minsize = 10000;
+   if($size < $minsize){
+        unlink $file;
+        if($download_sra_retry <= $download_sra_retry_limit) {
+                &lprint("SRA download failed. Or $file is not in fastq format. try again\n");
+                &Download_SRA();
+                return 1;
+        }else{
+                &lprint("SRA download failed. Or $file is not in fastq format.\n");
+                die "SRA download failed.\n";
+        }
+   }
 }
 
 sub check_reference_genome
@@ -973,8 +1008,10 @@ sub Reads_taxonomyAssignment
     my $pairFile = shift;
     my $unpairFile = shift;
     my $outputDir = shift;
+    my $config_json = "$outputDir/../../config.json";
     my $input = ($outputDir =~ /Unmap/)?"$outputDir/UnmappedReads.fastq":"$outputDir/allReads.fastq";
     my $logFile = "$outputDir/error.log";
+    my $log = "$outputDir/taxonomyProfiling.log";
     `mkdir -p $outputDir`;
     my $time=time();
     my $dparam=($debug)?"--debug":"" ;
@@ -1007,8 +1044,21 @@ sub Reads_taxonomyAssignment
 		$bwaScoreCut = int($bases/$reads*0.8);
 		close ($qcfh);
 	}
-
-	my $cmd0 ="$RealBin/scripts/microbial_profiling/microbial_profiling_configure.pl $RealBin/scripts/microbial_profiling/microbial_profiling.settings.tmpl $configuration->{enabledTools} $bwaScoreCut > $outputDir/microbial_profiling.settings.ini 2>$logFile";
+    my $cmd0 ="$RealBin/scripts/microbial_profiling/microbial_profiling_configure.pl -template $RealBin/scripts/microbial_profiling/microbial_profiling.settings.tmpl -tools $configuration->{enabledTools} -bwaScoreCut $bwaScoreCut -configJson $config_json"; 
+    $cmd0 .= " -bwa-db ". $configuration->{'custom-bwa-db'} if ($configuration->{'custom-bwa-db'});
+    $cmd0 .= " -metaphlan-db ". $configuration->{'custom-metaphlan-db'} if ($configuration->{'custom-metaphlan-db'});
+    $cmd0 .= " -kraken-db ". $configuration->{'custom-kraken-db'} if ($configuration->{'custom-kraken-db'});
+    $cmd0 .= " -pangia-db ". $configuration->{'custom-pangia-db'} if ($configuration->{'custom-pangia-db'});
+    $cmd0 .= " -gottcha-v-speDB ". $configuration->{'custom-gottcha-speDB-v'} if ($configuration->{'custom-gottcha-speDB-v'});
+    $cmd0 .= " -gottcha-b-speDB ". $configuration->{'custom-gottcha-speDB-b'} if ($configuration->{'custom-gottcha-speDB-b'});
+    $cmd0 .= " -gottcha-v-strDB ". $configuration->{'custom-gottcha-strDB-v'} if ($configuration->{'custom-gottcha-strDB-v'});
+    $cmd0 .= " -gottcha-b-strDB ". $configuration->{'custom-gottcha-strDB-b'} if ($configuration->{'custom-gottcha-strDB-b'});
+    $cmd0 .= " -gottcha-v-genDB ". $configuration->{'custom-gottcha-genDB-v'} if ($configuration->{'custom-gottcha-genDB-v'});
+    $cmd0 .= " -gottcha-b-genDB ". $configuration->{'custom-gottcha-genDB-b'} if ($configuration->{'custom-gottcha-genDB-b'});
+    $cmd0 .= " -gottcha2-v-genDB ". $configuration->{'custom-gottcha2-genDB-v'} if ($configuration->{'custom-gottcha2-genDB-v'});
+    $cmd0 .= " -gottcha2-b-speDB ". $configuration->{'custom-gottcha2-speDB-b'} if ($configuration->{'custom-gottcha2-speDB-b'});
+    $cmd0 .= " -gottcha2-v-speDB ". $configuration->{'custom-gottcha2-speDB-v'} if ($configuration->{'custom-gottcha2-speDB-v'});
+    $cmd0 .= "> $outputDir/microbial_profiling.settings.ini 2>$logFile"; 
     my $cmd="$RealBin/scripts/microbial_profiling/microbial_profiling.pl $dparam -o $outputDir -s $outputDir/microbial_profiling.settings.ini -c $numCPU $input 2>$logFile";
     if ($noColorLog)
     {
@@ -1018,7 +1068,7 @@ sub Reads_taxonomyAssignment
     {
         &lprint (colored ("[Reads Taxonomy Classification]\n",'yellow'));
     }
-    if ( -e "$outputDir/taxonomyAssignment.finished")
+    if ( -e "$outputDir/taxonomyAssignment.finished" && ($log && !`grep -a -i "Error" $log`))
     {
        &lprint ("Reads Taxonomy Classification Finished\n"); 
        return 0;
@@ -1032,7 +1082,7 @@ sub Reads_taxonomyAssignment
     &executeCommand($cmd); 
     
     $cmd = "$RealBin/scripts/svg2pdf $outputDir/report/*/*/*svg  2>>$logFile";
-    &executeCommand($cmd);
+    &executeCommand("$cmd || true");
     #unlink $input;
     system("touch $outputDir/taxonomyAssignment.finished");
     &printRunTime($time);
@@ -1659,6 +1709,7 @@ pdf(file = "$readsMappingToContigStatsPDF",width = 10, height = 8)
  
 readsMappingToContigStats<-readLines("$outDir/AssemblyBasedAnalysis/readsMappingToContig/readsToContigs.alnstats.txt")
 readsMappingToContigStats<-gsub("-?nan","0",readsMappingToContigStats,ignore.case = TRUE)
+readsMappingToContigStats<-gsub("\\t"," ",readsMappingToContigStats,ignore.case = TRUE)
 plot(0:1,0:1,type='n',xlab="",ylab="",xaxt='n',yaxt='n')
 for (i in 1:length(readsMappingToContigStats)){
    text(0,1-0.07*i,readsMappingToContigStats[i],adj=0,font=2)
@@ -1900,6 +1951,7 @@ sub runQC
     $parameters .= " -q $quality_cutoff -min_L $min_length -avg_q $avg_quality -n $num_N -lc $low_complexity -5end $cut_5_end -3end $cut_3_end";
     $parameters .= " -split_size $split_size -d $outputDir -t $numCPU";
     $parameters .= " -adapter -artifactFile ". $configuration->{"adapter"} if ($configuration->{"adapter"});
+    $parameters .= " -polyA " if ($configuration->{"polyA"});
      #$parameters .= " -phiX "  if ($configuration->{"phiX"});
     
     my $command = "perl $RealBin/scripts/illumina_fastq_QC.pl $parameters 1>$log 2>\&1";
@@ -1911,9 +1963,10 @@ sub runQC
     {
           return ("$outputDir/QC.1.trimmed.fastq $outputDir/QC.2.trimmed.fastq","$outputDir/QC.unpaired.trimmed.fastq");
     }
-    else
-    {
-          return("", "$outputDir/QC.unpaired.trimmed.fastq");
+    elsif ( -s "$outputDir/QC.unpaired.trimmed.fastq"){
+        return("", "$outputDir/QC.unpaired.trimmed.fastq");
+    }else{
+        die "failed: No reads remain after QC. Please see $log\n"; 
     }
 }
 
@@ -2061,15 +2114,20 @@ sub runHostRemoval
     if ( -s "$outputDir/$prefix.1.fastq" && -e "$outputDir/run${prefix}.finished" )
     {
         &lprint ("Host Removal Finished\n");
+        system("ln -sf $outputDir/$prefix.1.fastq $abs_outDir/HostRemoval/hostclean.1.fastq");
+        system("ln -sf $outputDir/$prefix.2.fastq $abs_outDir/HostRemoval/hostclean.2.fastq");
+        system("ln -sf $outputDir/$prefix.unpaired.fastq $abs_outDir/HostRemoval/hostclean.unpaired.fastq");
         return ("$outputDir/$prefix.1.fastq $outputDir/$prefix.2.fastq","$outputDir/$prefix.unpaired.fastq");
     }
     elsif ( -s "$outputDir/$prefix.unpaired.fastq" && -e "$outputDir/run${prefix}.finished" )
     {
         &lprint ("Host Removal Finished\n");
+        system("ln -sf $outputDir/$prefix.unpaired.fastq $abs_outDir/HostRemoval/hostclean.unpaired.fastq");
         return ("","$outputDir/$prefix.unpaired.fastq");
     }
     system("rm -f $outputDir/run${prefix}Removal.finished");
-    
+    system("rm -f $abs_outDir/HostRemoval/HostRemovalStats.pdf");
+    system("rm -f $abs_outDir/HostRemoval/hostclean*");
   
     
     my $parameters;
@@ -2164,6 +2222,7 @@ Rscript
     close $Rfh;
     &executeCommand("R --vanilla --slave --silent < $Rscript 2>/dev/null");
     unlink "$Rscript";
+    die "failed: No reads remain after Host Removal. \n" if ( ($total_reads - $total_host)==0);
     return 0;
 }
 
@@ -2212,7 +2271,8 @@ sub runReadsToContig
     &lprint ("  Running \n  $command \n");
     &executeCommand($command);
     &executeCommand("awk \'{print \$1\"\\t\"\$4}\' $outputDir/readsToContigs_coverage.table > $outputDir/magnitudes.txt");
-	&executeCommand("perl $RealBin/scripts/tab2Json_for_dataTable.pl -project_dir $abs_outDir -mode contig  $outputDir/readsToContigs_coverage.table > $outputDir/readsToContigs_coverage.table.json");
+    my $row_limit = $sys->{edgeui_result_table_rows} || 3000;
+    &executeCommand("perl $RealBin/scripts/tab2Json_for_dataTable.pl -project_dir $abs_outDir -mode contig -limit $row_limit  $outputDir/readsToContigs_coverage.table > $outputDir/readsToContigs_coverage.table.json");
     &executeCommand("mv $outputDir/Final_contigs.fasta $contigFile") if ( -s "$outputDir/Final_contigs.fasta");
     chdir "$abs_outDir/AssemblyBasedAnalysis/";
     &executeCommand("perl $RealBin/scripts/contig_stats.pl -p $contigFile > contigs_stats.txt");  
@@ -2234,7 +2294,9 @@ sub runReadsToGenome
     my $unpairFile=shift;
     my $referenceFile_r = shift;
     my $referenceFiles = join(" ",@$referenceFile_r);
+#    print STDERR scalar(@$referenceFile_r)."\n";
     my $referenceCount = scalar(@$referenceFile_r);
+#    print STDERR $referenceCount."\t".$referenceFiles."\n";
     my $time=time();
     my $outPrefix = "readsToRef";
     my $outputDir= "$outDir/ReadsBasedAnalysis/readsMappingToRef";
@@ -2261,7 +2323,7 @@ sub runReadsToGenome
     unlink "$outDir/JBrowse/writeJBrowseInfo.finished";
     unlink "$outGap";
     unlink "$outVCF";
-
+    
     my $parameters;    
     $parameters .= " -p \'$pairFile\'" if ($pairFile);
     $parameters .= " -u $unpairFile" if ( -s $unpairFile);
@@ -2279,7 +2341,7 @@ sub runReadsToGenome
     &executeCommand($command);
     &executeCommand("cat $outputDir/*.gap.coords > $outGap");
     &executeCommand("cat $outputDir/*.vcf > $outVCF");
-
+    
     if ($configuration->{r2g_extract_mapped}){
         # extract mapped reads
         `echo "Extract mapped reads" >> $log`;
@@ -2534,6 +2596,7 @@ sub runAssembly
     if ($assembler =~ /spades/){
         $AssemblerOutDir = "$outputDir/spades";
         $AssemblerContigs = "$AssemblerOutDir/contigs.fasta";
+        $AssemblerContigs = "$AssemblerOutDir/transcripts.fasta" if ($configuration->{SpadesAlgorithm} =~ /rna/);
         $AssemblerLog = "$AssemblerOutDir/spades.log";
         my $pacbio_file = $configuration->{SpadesPacbioFile};
         my $nanopore_file = $configuration->{SpadesNanoporeFile};
@@ -2542,14 +2605,16 @@ sub runAssembly
             my ($p1,$p2) = split /\s+/,$pairFile;
             $cmd .= "--pe1-1 $p1 --pe1-2 $p2 ";
         }     
-        if ($pairFile && $configuration->{SpadesMetagenomeMode}){
-		    # Version 3.7.1 metaSPAdes only support one paired end library.
+        if ($pairFile && $configuration->{SpadesAlgorithm} =~ /metagenome/){
+		    # Version 3.9.1 metaSPAdes only support one paired end library.
             $cmd .= "--meta " ;
         }else{
+            $cmd .= "--sc " if ($configuration->{SpadesAlgorithm} =~/singlecell/);
+            $cmd .= "--rna" if ($configuration->{SpadesAlgorithm} =~ /rna/);
+            $cmd .= "--plasmid " if ($configuration->{SpadesAlgorithm} =~ /plasmid/);
             $cmd .= "--s1 $unpairFile " if (-s $unpairFile);
             $cmd .= "--pacbio $pacbio_file " if ( -s $pacbio_file && (is_fasta($pacbio_file) || is_fastq($pacbio_file)));
             $cmd .= "--nanopore $nanopore_file " if ( -s $nanopore_file && is_fasta($nanopore_file));
-            $cmd .= "--sc " if ($configuration->{SpadesSingleCellMode});
         }
         $cmd .= "-m ". int($mem_limit/(1024*1024));
         
@@ -2779,7 +2844,7 @@ sub rename_filter_fasta
     $max_seq_number ||= 100000;
     my $serial_id= "0" x length($max_seq_number);
     my $id_info;
-    open (my $fh, "$fasta") or die "Cannot open $fasta\n";
+    my ($fh,$pid)=open_file($fasta);
     open (my $ofh, "> $output") or die "Cannot write $output\n";
     open (my $ofh2, "> $contig_for_annotation" ) or die "Cannot write $contig_for_annotation\n";
     $/ = ">";
@@ -2932,7 +2997,7 @@ sub SNPtree
     my $allTreeFile= $treeMaker eq "FastTree"? "${project_name}_all.fasttree" : "RAxML_bestTree.${project_name}_all";
     if ( ! -e "$outputDir/results/$allTreeFile" ){
 	my $error_log = "$outputDir/results/${project_name}.error";
-        my @errors = (-e $error_log)? `grep -i -a  ERROR $error_log`:"unknown";
+	my @errors = (-e $error_log)? `grep -i -a  ERROR $error_log`:"unknown";
 	my $error = join("\n", "  failed", @errors,"\n");
     	system("touch $outputDir/SNPtree.finished");
     	&printRunTime($time);
@@ -3135,7 +3200,7 @@ sub download_reads
     foreach my $url(@urls)
     {
         my $cmd = "curl -OLJ --max-filesize $size_limit $curl_proxy $url";
-	$cmd = "wget --content-disposition $url" if ($configuration->{'download_interface'} =~ /wget/); 
+        $cmd = "wget --content-disposition $url" if ($configuration->{'download_interface'} =~ /wget/); 
         &lprint (" Running \n $cmd\n");
         &executeCommand($cmd);
     }
@@ -3148,7 +3213,7 @@ sub download_reads
 sub getFilenameFromURLHeader
 {
     my $url = shift;
-    my $curl_proxy = ($proxy)?"--proxy \'$proxy\'":"";  
+    my $curl_proxy = ($proxy)?"--proxy \'$proxy\'":"";
     my $header_cmd="/usr/bin/curl -sI $curl_proxy $url| grep \'filename\' ";
     $header_cmd="/usr/bin/wget -dv -O /dev/null $url 2>&1 | grep \'filename\' " if ($configuration->{'download_interface'} =~ /wget/);
     my $header = `$header_cmd`;
@@ -3208,7 +3273,7 @@ sub checkFileAndDir
             }
             else
             {
-                &lprint("The seqeucne names of the paired end reads in $pairedReadsFile[$i],$pairedReadsFile[$i+1] are not matching.\nWill use them as single end reads\n");
+                &lprint("The sequence names of the paired end reads in $pairedReadsFile[$i],$pairedReadsFile[$i+1] are not matching.\nWill use them as single end reads\n");
                 push @unpairedReadsFile, $pairedReadsFile[$i],$pairedReadsFile[$i+1];
                 delete $file{basename($pairedReadsFile[$i])};
                 delete $file{basename($pairedReadsFile[$i+1])};
@@ -3260,6 +3325,7 @@ sub is_paired
         my $seq2=<$fh2>;
         my $q_id2=<$fh2>;
         my $q_seq2=<$fh2>;
+        last if (!$id1 || !$id2);
         my ($name1) = $id1 =~ /(\S+)/; 
         $name1 =~ s/\.\d$//;
         $name1 =~ s/\/\d$//;
@@ -3386,6 +3452,7 @@ sub printRunTime {
   my $time_string = sprintf(" Running time: %02d:%02d:%02d\n\n", int($runTime / 3600), int(($runTime % 3600) / 60), 
   int($runTime % 60));
   &lprint ($time_string);
+  return $time_string;
 }
 
 sub writeJBrowseInfo
@@ -3395,6 +3462,8 @@ sub writeJBrowseInfo
     my $abs_outDir = Cwd::abs_path("$outDir");
     my $outputDir = "$abs_outDir/JBrowse";
     my $log="$outputDir/log.txt";
+    my $ARGenesGFF="$outDir/AssemblyBasedAnalysis/SpecialtyGenes/${project_name}_AR_genes_rgi.gff";
+    my $VFGenesGFF="$outDir/AssemblyBasedAnalysis/SpecialtyGenes/${project_name}_VF_genes_ShortBRED.gff";
     `mkdir -p $outputDir`;
     if ($noColorLog)
     {
@@ -3417,10 +3486,11 @@ sub writeJBrowseInfo
     $cmd .= "--in-ref-fa '$referenceGenome' " if ($referenceGenome);
     $cmd .= "--in-ctg-fa $contig_for_annotation_file " if ($contig_for_annotation_file);
     $cmd .= "--in-ctg-anno-gff3 '$annotationGFF' " if ($annotationGFF);
-    $cmd .= "--in-orf-ar-gff3 '$AR_ORF_GFF' " if ($AR_ORF_GFF);
-    $cmd .= "--in-orf-vf-gff3 '$VF_ORF_GFF' " if ($VF_ORF_GFF);
-    $cmd .= "--proj_outdir '$abs_outDir' 2>\&1 1>$log";
     $cmd .= "--in-ref-gff3 '$gff3File' " if ($gff3File);
+    $cmd .= "--in-orf-ar-gff3 '$ARGenesGFF' " if ( -e "$ARGenesGFF");
+    $cmd .= "--in-orf-vf-gff3 '$VFGenesGFF' " if ( -e "$VFGenesGFF");
+    $cmd .= "--proj_outdir '$abs_outDir' 2>\&1 1>$log";
+
     &lprint (" Running \n $cmd\n");
     &executeCommand("$cmd"); 
     &executeCommand("ln -sf $abs_outDir $RealBin/edge_ui/JBrowse/data/") if (! -e  "$RealBin/edge_ui/JBrowse/data/$project_name" && -w "$RealBin/edge_ui/JBrowse/data");
@@ -3463,6 +3533,17 @@ sub generateHTMLreport
     &printRunTime($time);
     system("touch $outputDir/writeHTMLReport.finished")
 
+}
+
+sub send_error_notification {
+  my $project_name = $configuration->{projname};;
+  my $mail_subject= "EDGE project $project_name failed";
+  my $recipient = $configuration->{projowner};
+  $recipient = "$recipient,$sys->{email_recipient}" if ($sys->{email_recipient});
+  my $projID= $configuration->{projcode} || $configuration->{projid};
+  my $mail_msg = "EDGE project $project_name (Description: $configuration->{projdesc}) on $configuration->{projrunhost} failed.\n\n";
+  $mail_msg .= `cat $error_log_file`;
+  &sendMail($sys->{cluster_job_notify},$recipient,$mail_subject,$mail_msg) if ($sys->{error_notification} && $recipient);
 }
 
 sub sendMail{
@@ -3591,13 +3672,14 @@ sub lprint {
 
 sub detectPathogen
 {
-	my $summary =shift;
+	my $bl = shift;
+	my $vl = shift;
 	my $log = "$outDir/pathogenDetect.log";
 	my $dbhost = $sys->{pathogen_dbhost};
 	my $dbname = $sys->{pathogen_dbname};
 	my $dbuser = $sys->{pathogen_dbuser};
 	my $dbpasswd = $sys->{pathogen_dbpasswd};
-	my $cmd="python $RealBin/scripts/identify_pathogens.py -i $summary -o $outDir/pathogens.txt -d $dbhost -n $dbname -u $dbuser -p $dbpasswd 2>\&1 1>$log";
+	my $cmd="python $RealBin/scripts/identify_pathogens.py -b $bl -v $vl -o $outDir/pathogens.txt -d $dbhost -n $dbname -u $dbuser -p $dbpasswd 2>\&1 1>$log";
     	&lprint ("\n Running \n $cmd\n");
    	eval{system("$cmd");};
     	&lprint ("Pathogen detection finished.\n");

@@ -2,9 +2,14 @@
 <html class="ui-mobile"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1,maximum-scale=1, user-scalable=no">
-	<title>EDGE bioinformatics</title>
-	<link rel="shortcut icon" href="images/edge.ico" type="image/x-icon">
-	<link rel="icon" href="images/edge.ico" type="image/x-icon">
+	<meta name="mobile-web-app-capable" content="yes">
+        <title>EDGE bioinformatics</title>
+        <link rel="shortcut icon" href="images/edge.ico" type="image/x-icon">
+        <link rel="icon" href="images/edge.ico" type="image/x-icon">
+        <link rel="apple-touch-icon-precomposed" href="images/edge_logo_114.png">
+        <link rel="icon" href="images/edge_logo_192.png" size="192x192">
+	<link rel="stylesheet" href="css/jquery.mobile.datepicker.css" />
+	<link rel="stylesheet" href="css/jquery.mobile.datepicker.theme.css" />
 	<link rel="stylesheet" href="css/edge_fonts/edge_fonts.css" />
 	<link rel="stylesheet" href="css/edge-theme.min.css" />
 	<link rel="stylesheet" href="css/jquery.mobile.icons.min.css" />
@@ -16,10 +21,11 @@
 	<link rel='stylesheet' href='css/edge-output.css'/>
 	<link rel='stylesheet' href='css/tooltipster.css'/>
 	<link rel="stylesheet" href="css/jquery.lazyloadxt.spinner.min.css">
-        <link rel="stylesheet" href="javascript/plupload/jquery.plupload.queue/css/jquery.plupload.queue.css" type="text/css" media="screen" /> 
+	<link rel="stylesheet" href="javascript/plupload/jquery.plupload.queue/css/jquery.plupload.queue.css" type="text/css" media="screen" /> 
 	<link rel="stylesheet" type="text/css" href="css/zocial.css" />
 
 	<script src="javascript/jquery.js"></script>
+	<script src="javascript/jquery-ui-datepicker.js"></script>
 	<script src="javascript/jquery.mobile-1.4.3.min.js"></script>
 	<script src="javascript/jquery.dataTables.min.js"></script>
 	<script src="javascript/edge.js"></script>
@@ -29,15 +35,13 @@
 	<script src="javascript/jquery.tooltipster.min.js"></script>
 	<script src="javascript/jquery.lazyloadxt.extra.min.js"></script>
 	<script src="javascript/jquery.lazyloadxt.autoload.min.js"></script>
-        <script type="text/javascript" src="javascript/plupload/plupload.full.min.js"></script>
-        <script type="text/javascript" src="javascript/plupload/jquery.plupload.queue/jquery.plupload.queue.js"></script>
+	<script type="text/javascript" src="javascript/plupload/plupload.full.min.js"></script>
+	<script type="text/javascript" src="javascript/plupload/jquery.plupload.queue/jquery.plupload.queue.js"></script>
 	<script src="javascript/edge_dynamic_selection.js"></script>
 	<script src="javascript/hello.all.min.js"></script>
 	<script src="javascript/thenBy.min.js"></script>
 
 	<!-- sample metadata -->
-	<!--<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDhL0G5RZJDOoxgK3gtXmEhnD_aZxy0yxw&libraries=places"></script>
-	<script src="javascript/jquery.geocomplete.js"></script>-->
 	<link rel="stylesheet" type="text/css" href="css/geocomplete.css" />
 
 </head>
@@ -58,11 +62,11 @@
 			<h5></h5>
 			</a>
 		</div>
-		<div id="edge-project-header" class="edge-project-header">
-			<h2 class="edge-project-title"></h2>
-		</div>
 		<a href="" class="edge-navmenu-link ui-nodisc-icon ui-btn-left ui-btn ui-icon-bars ui-btn-icon-notext ui-corner-all" data-role="button" role="button">Menu</a>
-		<a href="" id="edge-user-btn" class="edge-user-btn ui-btn ui-nodisc-icon ui-btn-icon-left ui-icon-user ui-btn-icon-notext ui-corner-all ui-btn-right">User</a>
+                <div class="edge-navmenu-button-div">
+                        <a href="" class="edge-nav-btn ui-corner-all" id="edge-project-title" data-pid=""></a>
+                        <a href="" class="edge-nav-btn ui-corner-all" id="edge-user-btn"      >Login</a>
+                </div>
 		<a href="" class="edge-action-link ui-nodisc-icon ui-btn-right ui-btn ui-icon-action ui-btn-icon-notext ui-corner-all no-show-logout " data-role="button" role="button">Action</a>
 	</div><!-- /header -->
 	<div id="panel-folder" class="panel-folder" style="top: 2.7em; left: -2px; z-index:100000">
@@ -110,13 +114,11 @@
 				<li class="ui-btn"><span class="res-type">DISK</span><input type="range" id="disk-usage-bar" data-highlight="true" min="0" max="100" value="0"><span id="disk-usage-val"></span></li>
 			</ul>
 
-			<ul data-role="listview" data-inset="true">
+			<ul data-role="listview" data-inset="true" id="project-actions">
 				<li data-role='list-divider'>Action</li>
 				<li data-icon='bars'>     <a href='#edge_log_dialog' id='edge-view-log-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey'>View live log</a>
 				<li data-icon='refresh'>  <a href='#edge_confirm_dialog' id='action-rerun-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='rerun'>Force this project to rerun</a>
-<!--
 				<li data-icon='gear'>  <a href='#' id='action-reconfig-btn' class='edge-icon-bg-grey' data='reconfig'>Reconfig project (BETA)</a>
--->
 				<li data-icon='forbidden'><a href='#edge_confirm_dialog' id='action-interrupt-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='interrupt'>Interrupt running project</a>
 				<li data-icon='delete'>   <a href='#edge_confirm_dialog' id='action-delete-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='delete'>Delete entire project</a>
 				<!-- <li data-icon='minus'>   <a href='#edge_confirm_dialog' id='action-delete-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='remove'>Remove from project list</a> -->
@@ -127,21 +129,19 @@
 
 				<li data-icon='back' class="no-show-logout"><a href='#edge_confirm_dialog' id='action-unshare-btn' aria-haspopup='true' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='unshare'>Unshare project</a>
 				<li data-icon='eye' class="no-show-logout"><a href='#edge_confirm_dialog' id='action-publish-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='publish'>Make project public</a>
-<!--
 				<li data-icon='edit' class="no-show-logout"><a href='#edge_confirm_dialog' id='action-rename-pjct' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class= 'edge-icon-bg-grey' data='rename'> Rename Project </a> 
--->
 
 			</ul>
 
 			<!-- sample metadata -->
-			<ul data-role="listview" data-inset="true">
+			<ul data-role="listview" data-inset="true" id="metadata-actions">
 				<li data-role='list-divider'>Sample Metatdata</li>
-				<li data-icon='edit'>     <a id='edge-pg-metadata-edit' class='edge-icon-bg-grey'>Edit</a>
+				<li data-icon='edit'>     <a id='metadata-edit' class='edge-icon-bg-grey'>Edit</a>
 				<li data-icon='delete'>     <a href='#edge_confirm_dialog' id='action-metadata-delete-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='metadata-delete'>Delete</a>
-<!--
-				<li data-icon='delete'>     <a href='#edge_confirm_dialog' id='action-metadata-bsve-delete-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='metadata-bsvedelete'>Delete from BSVE</a>
-				<li data-icon='forward'>     <a href='#edge_confirm_dialog' id='action-metadata-bsve-submit-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='metadata-bsveadd'>Share with BSVE</a>
--->
+			</ul>
+			<ul data-role="listview" data-inset="true" id="bsve-actions">
+				<li data-role='list-divider'>BSVE</li>
+				<li data-icon='forward'>     <a href='#edge_confirm_dialog' id='action-metadata-bsve-submit-btn' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' class='edge-icon-bg-grey' data='metadata-bsveadd'>Share metadata/pathogens</a>
 			</ul>
 			<!-- END sample metadata -->
 		</div>
@@ -160,8 +160,9 @@
 			<img src="images/mission-logo.png" alt='mission' />
 		</div>
 		<p>
-			EDGE bioinformatics is intended to help truly democratize the use of Next Generation Sequencing for exploring genomes and metagenomes. Given that bioinformatic analysis is now the rate limiting factor in genomics, we developed EDGE bioinformatics with a <b>user-friendly interface</b> that allows scientists to perform a number of tailored analyses using <b>many cutting-edge tools</b>. 
-This website is available for use with publicly available data, while local stand-alone implementations can accommodate data generated on-site for immediate analysis, eliminating the need to move large datasets. 
+			EDGE bioinformatics is intended to help truly democratize the use of Next Generation Sequencing for exploring genomes and metagenomes. Given that bioinformatic analysis is now the rate limiting factor in genomics, we developed EDGE bioinformatics with a user-friendly interface that allows scientists to perform a number of tailored analyses using many cutting-edge tools. 
+A complete version of EDGE is available as a variety of packages that can fit individual needs, including <a href="https://github.com/LANL-Bioinformatics/EDGE" target="_blank">source code</a>, or images in <a href="https://edge.readthedocs.io/en/develop/installation.html#edge-vmware-ovf-image" target="_blank">VMware</a> and <a href="https://edge.readthedocs.io/en/develop/installation.html#edge-docker-image" target="_blank">Docker</a> formats. For basic information about EDGE, visit the <a href="docs/EDGE_ABCs.pdf" target="_blank">EDGE ABCs</a>, that provide a brief overview of EDGE, the various workflows, and the computational environment restraints for local use.
+
 			<h3 class="edge-center">EDGE Workflow</h3>
 			<div class="edge-center">
 				<a href="#popup-sWorkflow" data-transition="fade" data-rel="popup" data-position-to="window"><img style="max-width:360px; height:auto; padding-right:1em;" src="images/sWorkflow_small.jpg" alt="EDGE_sWorkflow"/></a>
@@ -194,19 +195,27 @@ This website is available for use with publicly available data, while local stan
 		<h2>Implementation</h2>
 		<p>
 			<ul>
-			<li>EDGE Bioinformatics is built around a collection of publicly available, open-source software packaged or in-house developed tools/algorithms/scripts that form six mainly independent modules</li>
+			<li>EDGE Bioinformatics is built around a collection of publicly available, open-source software packaged or in-house developed tools/algorithms/scripts to process <b>Illumina FASTQ data</b> (there is currently limited capability of incorporating PacBio and Oxford Nanopore data into the Assembly module)</li>
 			<li>The EDGE bioinformatics web-based graphic user interface is primarily implemented using the JQuery Mobile javascript framework and HTML5 on the client-side, and implements perl CGI using Apache or Python on the server-side</li>
 			<li>The current version of EDGE pipeline has been extensively tested on Linux platforms with Ubuntu 14.04 and CentOS 6/7 operation system and will only work on 64bit Linux environments</li>
-			<li>Due to the involvement of several memory/time consuming steps, we normally recommend computers with at least 16GB memory and 8 CPUs, though we typically use on servers with a minimum of 128GB memory with 16 CPUs</li>
+			<li>Due to the involvement of several memory/time consuming steps, we normally recommend computers with at least 16GB memory and 8 CPUs, though we typically use on servers with a minimum of 256GB memory with 64 CPUs</li>
 			</ul>
 		</p>
 		<h2>Download & Updates</h2>
 		<p>
-			Please check our <a href="https://lanl-bioinformatics.github.io/EDGE/" target="_blank">LANL-Bioinformatics GitHub site</a>.
+			Source code: <a href="https://github.com/LANL-Bioinformatics/EDGE" target="_blank">LANL-Bioinformatics GitHub site</a>.<br/>
+                        VM image: <a href="https://edge.readthedocs.io/en/develop/installation.html#edge-vmware-ovf-image" target="_blank">location and instructions</a>.<br/>
+                        Docker image: <a href="https://edge.readthedocs.io/en/develop/installation.html#edge-docker-image" target="_blank">location and instructions</a>.<br/>
+                        <br/>
+                        Please visit <a href="https://lanl-bioinformatics.github.io/EDGE/" target="_blank">EDGE Homepage</a> for latest news and updates.
 		</p>
 		<h2>Tutorial & Help</h2>
 		<p>
-			The tutorial and guide are hosted in <a href="https://edge.readthedocs.org/en/v1.5/" target="_blank">edge.readthedocs.org</a> in (<a href="https://media.readthedocs.org/pdf/edge/v1.5/edge.pdf" target="_blank">click here for PDF version</a>). User discussion group can be found <a href="https://groups.google.com/d/forum/edge-users" target="_blank">here</a>.
+			The EDGE tutorial video series is hosted in <a href="https://www.youtube.com/playlist?list=PL7DNo6h5wJsTh2l2GK3N86Imb-9fYQFfH" target="_blank">Youtube.</a> The detailed documentation and guide are hosted in <a href="https://edge.readthedocs.io/en/develop/" target="_blank">edge.readthedocs.io</a> in (<a href="https://media.readthedocs.org/pdf/edge/develop/edge.pdf" target="_blank">click here for PDF version</a>). User discussion group can be found <a href="https://groups.google.com/d/forum/edge-users" target="_blank">here</a>.
+		</p>
+		<h2>Publication</h2>
+		<p>
+			Po-E Li, Chien-Chi Lo, Joseph J. Anderson, Karen W. Davenport, Kimberly A. Bishop-Lilly, Yan Xu, Sanaa Ahmed, Shihai Feng, Vishwesh P. Mokashi, Patrick S. G. Chain (2016), <b>Enabling the democratization of the genomics revolution with a fully integrated web-based bioinformatics platform</b>, <em>Nucleic Acids Research</em> (doi: <a href="http://nar.oxfordjournals.org/content/early/2016/11/28/nar.gkw1027.full" target="_blank">10.1093/nar/gkw1027</a>)
 		</p>
 	</div><!-- /home -->
 
@@ -219,17 +228,16 @@ This website is available for use with publicly available data, while local stan
 <form id="edge-run-pipeline-form" autocomplete='off'>
 	<div role="main" id="edge-content-pipeline" class="ui-content edge-content edge-main-page">
 		<h2>Input Your Sample</h2>
-		<p class="edge-main-pipeline-input">EDGE requires sequence data files in FASTQ format. EDGE allows both paired-end and single-end sequences.</p>
+		<p class="edge-main-pipeline-input">EDGE requires <b>Illumina FASTQ</b> sequence data files in FASTQ format. EDGE allows both paired-end and single-end sequences.</p>
 		<p class="edge-qiime-pipeline-input">The <a href="http://qiime.org/tutorials/open_reference_illumina_processing.html" target="_blank">Qiime</a> pipeline requires sequence data files in FASTQ format and a <a href="http://qiime.org/documentation/file_formats.html" target="_blank">mapping file</a>. The sequence file is either paired-end or single-end sequences.</p>
 		<div data-role="collapsible-set">
-
 
 			<div data-role="collapsible" id="edge-input-sequence" data-collapsed-icon="carat-d" data-expanded-icon="carat-u" data-collapsed="false">
 				<h4 class="edge-main-pipeline-input">Input Raw Reads</h4>
 
 				<div class="ui-body-d ui-content">
 					<div class="ui-field-contain">
-						<label for="edge-proj-name">Project Name</label>
+						<label for="edge-proj-name">Project/Run Name</label>
 						<input type="text" data-mini="true" data-clear-btn="false" name="edge-proj-name" id="edge-proj-name" maxlength="30" placeholder="(required, at 3 but less than 30 characters)"></div>
 					<div class="ui-field-contain">
 						<label for="edge-proj-desc">Description</label>
@@ -267,7 +275,7 @@ This website is available for use with publicly available data, while local stan
 						</fieldset>
 						
 						<fieldset id="edge-qiime-pro-sw" data-role="controlgroup" data-mini="true" data-type="horizontal" class="edge-qiime-pipeline-input ui-field-contain">
-						<legend class='tooltip' id="edge-qiime-pro-tooltip">Paired Reads Orientation</legend>
+						<legend>Reads Orientation<a href="#" class="tooltip ui-btn  ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" id="edge-qiime-pro-tooltip"></a></legend>
 							<input type="radio" data-mini="true" name="edge-qiime-pro-sw" id="edge-qiime-pro-sw1" value="fr" checked="checked">
 							<label for="edge-qiime-pro-sw1">FR</label>
 							<input type="radio" data-mini="true" name="edge-qiime-pro-sw" id="edge-qiime-pro-sw2" value="rf">
@@ -303,14 +311,14 @@ This website is available for use with publicly available data, while local stan
 					</div> 
 					<div id="edge-sra-input-block">
 						<div class="ui-field-contain">
-							<label for=edge-sra-acc">SRA Accession</label>
+							<label for="edge-sra-acc">SRA Accession</label>
 							<input data-mini="true" type="text" name="edge-sra-acc" id="edge-sra-acc" placeholder="ex:SRR1553609">
 						</div>
 						<p class="edge_tool_note"> (Internet requried) Input SRA accessions support studies (SRP*/ERP*/DRP*), experiments (SRX*/ERX*/DRX*), samples (SRS*/ERS*/DRS*), runs (SRR*/ERR*/DRR*), or submissions (SRA*/ERA*/DRA*). ex: <a href="https://www.ncbi.nlm.nih.gov/sra/?term=SRR1553609" target="_blank">SRR1553609</a></p>
 					</div>
 					<div class="edge-qiime-pipeline-input">
 						<div id="edge-qiime-pipeline-dir-input" class="ui-field-contain input-type-file">
-							<label for="edge-qiime-reads-dir-input" class="tooltip" title="(Double Click) Contains Demultiplexed fastq files. To use this option, the mapping file need a 'Files' column with filenames for each sampleID.">Directory</label>
+							<label for="edge-qiime-reads-dir-input">Directory<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="(Double Click) Contains Demultiplexed fastq files. To use this option, the mapping file need a 'Files' column with filenames for each sampleID."></a></label>
 							<input data-mini="true" type="text" name="edge-qiime-reads-dir-input" id="edge-qiime-reads-dir-input" placeholder="absolute dir path/select dir">
 							<div class="edge-file-selector"><a href='#edge_file_dialog' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' data-mini="true" class="ui-btn ui-shadow ui-corner-all ui-icon-bullets ui-btn-icon-notext">Dir</a></div>
 						</div>
@@ -318,7 +326,7 @@ This website is available for use with publicly available data, while local stan
 					<div class="edge-qiime-pipeline-input">
 						<p class="edge-center">Mapping File:</p>
 						<div id="edge-qiime-pipeline-input-block1" class="ui-field-contain input-type-file edge-qiime-pipeline-input-block">
-							<label for="edge-qiime-mapping-file-input1" class="tooltip" id="edge-qiime-mapping-file-tooltip">Mapping File</label>
+							<label for="edge-qiime-mapping-file-input1">Mapping File<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" id="edge-qiime-mapping-file-tooltip"></a></label>
 							<input data-mini="true" type="text" name="edge-qiime-mapping-file-input[]" id="edge-qiime-mapping-file-input1" placeholder="absolute file path/select file">
 							<div class="edge-file-selector"><a href='#edge_file_dialog' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' data-mini="true" class="ui-btn ui-shadow ui-corner-all ui-icon-bullets ui-btn-icon-notext">file</a>
 							<a href="#" class="btnDel-edge-input" data-role="button" data-icon="delete" data-iconpos="notext">Delete</a></div>
@@ -333,11 +341,9 @@ This website is available for use with publicly available data, while local stan
 							<a href="#" id="btnAdd-edge-input-se" data-theme="b" data-role="button" data-inline="true" data-mini="true" data-icon="plus" data-iconpos="right" >Add Single-end Input</a>
 							<a href="#" id="btnAdd-edge-qiime-mapping-file" class="edge-qiime-pipeline-input" data-theme="b" data-role="button" data-inline="true" data-mini="true" data-icon="plus" data-iconpos="right" >Add Mapping File Field</a>
 						</div>
-						<!--
 						<div class="ui-field-contain">
 							<label for="edge-proj-outpath">Specify Output Path</label>
 							<input type="text" data-mini="true" data-clear-btn="false" name="edge-proj-outpath" id="edge-proj-outpath" placeholder="(optional)"></div>
-						-->
 						<!--<p class="edge-center">or</p>
 						<div class="ui-field-contain">
 							<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
@@ -352,7 +358,7 @@ This website is available for use with publicly available data, while local stan
 
 						<div class="ui-field-contain">
 							<label for="edge-proj-desc">Use # of CPUs</label>
-							<input type="text" data-mini="true" data-clear-btn="false" name="edge-proj-cpu" id="edge-proj-cpu" value="16"></div>
+							<input type="text" data-mini="true" data-clear-btn="false" name="edge-proj-cpu" id="edge-proj-cpu" value="%DEFAULT_CPU%"></div>
 
 						<div class="ui-field-contain input-type-file">
 							<label for="edge-input-config">Config File</label>
@@ -368,7 +374,7 @@ This website is available for use with publicly available data, while local stan
 				<p class="edge_tool_note">Run EDGE with Multiple projects using a tools set configuration. Click <a href="data/BatchExcelExample.xlsx" download="" target="_blank"> Download [Sample File]</a> to see the example. </p>
 				<div id="edge-batch-input-block1" class="edge-batch-input"> 
 					<div class="ui-field-contain input-type-file">
-						<label class = 'tooltip' title='Column headers must be labeled: "Project", "Q1", "Q2", "Description"' for="edge-batch-input-block1">Batch Excel File</label>
+						<label for="edge-batch-input-excel-1">Batch Excel File<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title='Column headers must be labeled: "Project", "Q1", "Q2", "Description"' for="edge-batch-input-block1"></a></label>
 						<input type="text" data-mini="true" name="edge-batch-input-excel" id="edge-batch-input-excel-1" placeholder="absolute file path/select file">
 						<div class="edge-file-selector"><a href='#edge_file_dialog' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' data-mini="true" class="ui-btn ui-shadow ui-corner-all ui-icon-bullets ui-btn-icon-notext">file</a></div>
 					</div>
@@ -376,205 +382,256 @@ This website is available for use with publicly available data, while local stan
 			</div>
 		</div>
 
-
 <!-- sample metadata -->
-		<div id="edge-sample-metadata">
-		<div data-role="collapsible" data-collapsed-icon="carat-d" data-expanded-icon="carat-u" >
-			<h4 class="edge-main-pipeline-input">
-				<div class="ui-field-contain edge-collapsible-options">
-					<select id="edge-metadata-sw" name="edge-metadata-sw" data-role="slider" data-mini="true">
-						<option value="0" selected="TRUE">Off</option><option value="1">On</option>
-					</select>
-					<label for="edge-metadata-sw">Sample Metadata</label>
-				</div>
-			</h4>
+	<div id="edge-sample-metadata" class="edge-main-pipeline-input">
+		<div data-role="collapsible" id="edge-input-metadata" data-collapsed-icon="carat-d" data-expanded-icon="carat-u" data-collapsed="true">
+			<h4 class="edge-main-pipeline-input">Input Metadata</h4>
+
 			<div class="ui-corner-all custom-corners">
-				
-					<div class="ui-field-contain">
-						<label for="edge-sample-type">Sample Type</label>
-						<select name="edge-sample-type" id="edge-sample-type" data-mini="true" >
-							<option value="human">Human</option>
-							<option value="animal">Animal</option>
-							<option value="environmental">Environmental</option>
-						</select>
+			
+				<div class="ui-corner-all custom-corners">
+					<div class="ui-bar ui-bar-d">
+						<b><em>Study</em></b><a href="#" class="tooltip ui-btn ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn ui-nodisc-icon ui-alt-icon" title="Describe the sequencing study including a title and a study type."></a>
 					</div>
+					<div class="ui-body ui-body-a ui-corner-all">
+						<div class="ui-field-contain">
+							<label for="metadata-study-title">Study Title</label>
+							 <input type="text" id="metadata-study-title" name="metadata-study-title" placeholder="Enter a new title or select an existing title from a list by entering a key word" class="metadata-input">
+						</div>
+						<div class="ui-field-contain" id="study-title-div" style="display:none;">
+							<label for="metadata-study-title-list"></label>
+							<div class="dblist-study">
+								<ul data-role="listview" data-mini="true" data-inset="true" data-filter="true" data-filter-reveal="true" data-input="#metadata-study-title" id="metadata-study-title-list">
+						 		</ul>
+							</div>
+						</div>
+						<div class="ui-field-contain">
+							<label for="metadata-study-type">Study Type</label>
+							 <input type="text" id="metadata-study-type" name="metadata-study-type" placeholder="Enter a new type or select an existing type from a list by entering a key word" class="metadata-input">
+						</div>
+						<div class="ui-field-contain" id="study-type-div" style="display:none;">
+							<label for="metadata-study-type-list"></label>
+							<div class="dblist-study-type">
+								<ul data-role="listview" data-mini="true" data-inset="true" data-filter="true" data-filter-reveal="true" data-input="#metadata-study-type" id="metadata-study-type-list">
+						 		</ul>
+							</div>
+						</div>
+					</div>
+				</div>
 
-		                	<div id="edge-pg-host-associated" >
-			                	<div class="ui-field-contain">
-						        <label for="edge-pg-host">Host</label>
-							<input type="text" data-mini="true" data-clear-btn="false" name="edge-pg-host" id="edge-pg-host" maxlength="30" value="human">
-		                    		</div>
-		                    		<div class="ui-field-contain">
+				<br/><br/>
+				<div class="ui-corner-all custom-corners">
+					<div class="ui-bar ui-bar-d">
+						<b><em>Sample</em></b><a href="#" class="tooltip ui-btn ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn ui-nodisc-icon ui-alt-icon" title="Since the sample is one of the most important objects to be described biologically, it is highly recommended to describe the sample in as much detail as possible."></a>
+					</div>
+					<div class="ui-body ui-body-a ui-corner-all">
+				        	
+					   	<div class="ui-field-contain">
+							<label for="metadata-sample-name">Sample Name</label>
+							<input type="text" data-mini="true" data-clear-btn="false" name="metadata-sample-name" id="metadata-sample-name" maxlength="30" placeholder="Sample Name" class="metadata-input">
+				            	</div>
+
+				           	<div class="ui-field-contain">
 							<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
-								<legend></legend>
-								<input type="radio" name="edge-pg-host-condition" id="edge-pg-host-condition1" value="healthy">
-								<label for="edge-pg-host-condition1">Healthy</label>
-								<input type="radio" name="edge-pg-host-condition" id="edge-pg-host-condition2" value="diseased">
-								<label for="edge-pg-host-condition2">Diseased</label>
-								<input type="radio" name="edge-pg-host-condition" id="edge-pg-host-condition3" value="unknown" checked="checked">
-								<label for="edge-pg-host-condition3">Unknown</label>
+								<legend>Sample Type</legend>
+								<input type="radio" name="metadata-sample-type" id="metadata-sample-type2" value="animal">
+								<label for="metadata-sample-type2">Animal</label>
+								<input type="radio" name="metadata-sample-type" id="metadata-sample-type3" value="environmental">
+								<label for="metadata-sample-type3">Environmental</label>
+								<input type="radio" name="metadata-sample-type" id="metadata-sample-type1" value="human" checked="checked">
+								<label for="metadata-sample-type1">Human</label>
 							</fieldset>
-		                    		</div>
-		                	</div>
+				            	</div>
 
-		                	<div id="edge-pg-human" >
-			                	<div class="ui-field-contain">
-						        <label for="pg-cb-gender">Gender</label>
-							<input type="checkbox" name="pg-cb-gender" id="pg-cb-gender" data-mini="true">
-		                    		</div>
-		                    		<div class="ui-field-contain" id="human-gender">
-							<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
-								<legend></legend>
-								<input type="radio" name="edge-pg-gender" id="edge-pg-gender1" value="male" checked="checked">
-								<label for="edge-pg-gender1">Male</label>
-								<input type="radio" name="edge-pg-gender" id="edge-pg-gender2" value="female">
-								<label for="edge-pg-gender2">Female</label>
-							</fieldset>
-		                    		</div>
-			                	<div class="ui-field-contain">
-						        <label for="pg-cb-age" class="ui-btn ui-corner-all ui-btn-inherit ui-btn-icon-left ui-checkbox-off">Age</label>
-							<input type="checkbox" name="pg-cb-age" id="pg-cb-age" data-mini="true">
-		                    		</div>
-			                	<div class="ui-field-contain" id="human-age">
-						        <label for="edge-pg-age"></label>
-							<input type="number" name="edge-pg-age" id="edge-pg-age" data-mini="true" data-clear-btn="true" value="1" min="1" max="130">
-		                    		</div>
-		                	</div>
+				        	<div id="metadata-host-block" >
+					        	<div class="ui-field-contain" id="metadata-host-h">
+								<label for="metadata-host">Host</label>
+								<input type="text" data-mini="true" data-clear-btn="false" name="metadata-host-h" id="metadata-host-h" maxlength="30" value="human" readonly>
+				            		</div>
+					        	<div class="ui-field-contain" id="metadata-host-a">
+								<label for="metadata-host">Host</label>
+							 	<input type="text" id="metadata-host" name="metadata-host" placeholder="Enter a new host or select an existing host from a list by entering a key word" class="metadata-input">
+				            		</div>
+							<div class="ui-field-contain" id="host-list-div" style="display:none;">
+								<label for="metadata-host-list"></label>
+								<div class="dblist-pg-host">
+								<ul data-role="listview" data-mini="true" data-inset="true" data-filter="true" data-filter-reveal="true" data-input="#metadata-host" id="metadata-host-list">
+							 	</ul>
+								</div>
+							</div>
+				            		<div class="ui-field-contain">
+								<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
+									<legend>Host Condition</legend>
+									<input type="radio" name="metadata-host-condition" id="metadata-host-condition1" value="healthy">
+									<label for="metadata-host-condition1">Healthy</label>
+									<input type="radio" name="metadata-host-condition" id="metadata-host-condition2" value="diseased">
+									<label for="metadata-host-condition2">Diseased</label>
+									<input type="radio" name="metadata-host-condition" id="metadata-host-condition3" value="unknown" checked="checked">
+									<label for="metadata-host-condition3">Unknown</label>
+								</fieldset>
+				            		</div>
+				        	</div>
 
-					<div class="ui-field-contain">
-						<label for="edge-sample-source">Isolation Source</label>
-						<div id="edge-sample-source-options-host">
-							<select data-mini="true" name="edge-sample-source-host" id="edge-sample-source-host">
-								<option value="blood">Blood</option>
-								<option value="nasal">Nasal</option>
-								<option value="saliva">Saliva (oral)</option>
-								<option value="skin">Skin</option>
-								<option value="sputum">Sputum</option>
-								<option value="stool">Stool (gut)</option>
-								<option value="throat">Throat</option>
-								<option value="vaginal">Vaginal</option>
-								<option value="wound">Wound</option>
-								<option value="other">Other</option>
-								<option value="unknown">Unknown</option>
-							</select>
+				        	<div id="metadata-host-human" >
+					        	<div class="ui-field-contain">
+								<label for="metadata-host-gender-cb">Gender</label>
+								<input type="checkbox" name="metadata-host-gender-cb" id="metadata-host-gender-cb" data-mini="true">
+				            		</div>
+				            		<div class="ui-field-contain" id="human-gender">
+								<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
+									<legend></legend>
+									<input type="radio" name="metadata-host-gender" id="metadata-host-gender1" value="male" checked="checked">
+									<label for="metadata-host-gender1">Male</label>
+									<input type="radio" name="metadata-host-gender" id="metadata-host-gender2" value="female">
+									<label for="metadata-host-gender2">Female</label>
+								</fieldset>
+				            		</div>
+					        	<div class="ui-field-contain">
+								<label for="metadata-host-age-cb" class="ui-btn ui-corner-all ui-btn-inherit ui-btn-icon-left ui-checkbox-off">Age</label>
+								<input type="checkbox" name="metadata-host-age-cb" id="metadata-host-age-cb" data-mini="true">
+				            		</div>
+					        	<div class="ui-field-contain" id="human-age">
+								<label for="metadata-host-age"></label>
+								<input type="number" name="metadata-host-age" id="metadata-host-age" data-mini="true" data-clear-btn="true" value="1" min="1" max="130">
+				            		</div>
+
+							<div data-role="collapsible" id="metadata-travels-collapsible" data-collapsed-icon="carat-d" data-expanded-icon="carat-u" data-collapsed="true">
+								<h4 class="edge-main-pipeline-input">Recent Travels</h4>
+						    		<div id="metadata-travels">
+						    		</div>
+								<div class="ui-field-contain">
+									<a href="#" class="ui-btn ui-btn-icon-left ui-icon-plus ui-mini" id="add-travel">Add a travel</a>
+								</div>
+								<br/><br/>
+							</div>
+
+							<div data-role="collapsible" id="metadata-symptoms-collapsible" data-collapsed-icon="carat-d" data-expanded-icon="carat-u" data-collapsed="true">
+								<h4 class="edge-main-pipeline-input">Symptoms</h4>
+								<p class="edge_tool_note">(please check all that apply):</p>
+						    		<div id="metadata-symptoms">
+						    		</div>
+							</div>
+				        	</div>
+
+
+						<div class="ui-field-contain">
+							<label for="metadata-isolation-source">Isolation Source</label>
+							 <input type="text" id="metadata-isolation-source" name="metadata-isolation-source" placeholder="Enter a new source or select an existing source from a list by entering a key word" class="metadata-input">
 						</div>
-						<div id="edge-sample-source-options-nonhost">
-							<select data-mini="true" name="edge-sample-source-nonhost" id="edge-sample-source-nonhost">
-								<option value="air">Air</option>
-								<option value="built-environment">Built-environment</option>
-								<option value="microbial mat/biofilm">Microbial mat/biofilm</option>
-								<option value="plant">Plant</option>
-								<option value="sediment">Sediment</option>
-								<option value="soil">Soil</option>
-								<option value="water">Water</option>
-								<option value="wastewater/sludge">Wastewater/Sludge</option>
-								<option value="other">Other</option>
-								<option value="unknown">Unknown</option>
-							</select>
+						<div class="ui-field-contain" id="isolation-source-list-div" style="display:none;">
+							<label for="metadata-isolation-source-list"></label>
+							<div class="dblist-sample-source">
+							<ul data-role="listview" data-mini="true" data-inset="true" data-filter="true" data-filter-reveal="true" data-input="#metadata-isolation-source" id="metadata-isolation-source-list">
+						 	</ul>
+							</div>
 						</div>
-		                	</div>
-		                	
-			           	<div class="ui-field-contain">
-						<label for="edge-pg-sample-source-detail"></label>
-						<input type="text" data-mini="true" data-clear-btn="false" name="edge-pg-sample-source-detail" id="edge-pg-sample-source-detail" maxlength="30" placeholder="More detailed Information">
-		                    	</div>
-		                	
-					<div class="ui-field-contain">
-						<label for="edge-pg-collection-date">Collection Date</label>
-						<input type="date" data-mini="true" data-clear-btn="false" name="edge-pg-collection-date" id="edge-pg-collection-date" maxlength="30">
-					</div>
-
-					<!-- geo autocomplete -->
-
-					<form>
-					<div class="map_canvas" id="map_canvas" ></div>
-					<div class="ui-field-contain">
-						<label>Location</label>
-					      	<input id="geocomplete" type="text" placeholder="Type in an address to let system auto fill the location fields below"/>
-					</div>
-
-					<div class="ui-field-contain">
-						<label></label>
-						<input name="locality" id="edge-pg-sample-city" data-mini="true" data-clear-btn="false"type="text" placeholder="City">
-					</div>
-
-
-					<div class="ui-field-contain">
-						<label></label>
-						<input name="administrative_area_level_1"  id="edge-pg-sample-state" data-mini="true" data-clear-btn="false"type="text"placeholder="State">
-					</div>
-
-					<div class="ui-field-contain">
-						<label></label>
-						<input name="country" id="edge-pg-sample-country" data-mini="true" data-clear-btn="false"type="text" placeholder="Country">
-					</div>
-
-
-					<div class="ui-field-contain">
-						<label></label>
-						<input name="lat" id="edge-pg-sample-lat" data-mini="true" data-clear-btn="false"type="text" placeholder="Latitude">
-					</div>
-
-					<div class="ui-field-contain">
-						<label></label>
-						<input name="lng" id="edge-pg-sample-lng" data-mini="true" data-clear-btn="false"type="text" placeholder="Longitude">
-					</div>
-					</form>
-
-					<!-- end geo -->
-
-					<div class="ui-field-contain">
-						<label for="edge-pg-seq-platform">Sequencing Platform</label>
-						<div id="edge-pg-seq-platform-options">
-							<select data-mini="true" name="edge-pg-seq-platform" id="edge-pg-seq-platform">
-								<option value="Illumina">Illumina</option>
-								<option value="IonTorrent">IonTorrent</option>
-								<option value="Nanopore">Nanopore</option>
-								<option value="PacBio">PacBio</option>
-							</select>
+				        	
+						<div class="ui-field-contain">
+							<label for="metadata-sample-collection-date">Collection Date</label>
+							<input type="text" data-role="date" data-mini="true" data-clear-btn="false" name="metadata-sample-collection-date" id="metadata-sample-collection-date" maxlength="30" class="metadata-input metadata-input-date">
 						</div>
-		                	</div><div class="ui-field-contain">
-						<label for="edge-pg-sequencer">Sequencer</label>
-						<div id="edge-pg-sequencer-options-ill">
-							<select data-mini="true" name="edge-pg-sequencer-ill" id="edge-pg-sequencer-ill">
-								<option value="HiSeq">HiSeq</option>
-								<option value="HiSeq X">HiSeq X</option>
-								<option value="MiniSeq">MiniSeq</option>
-								<option value="MiSeq">Miseq</option>
-								<option value="NextSeq">Nextseq</option>
-							</select>
+
+						<!-- geo autocomplete -->
+
+						<div id="metadata-sample-geo">
+							<div class="ui-field-contain">
+								<label>Location</label>
+							      	<input name="metadata-sample-location" id="metadata-sample-geocomplete" type="text" placeholder="Type in an address to let system auto fill the location fields below" class="metadata-input">
+							</div>
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="locality" id="metadata-sample-city" data-mini="true" data-clear-btn="false" type="text" placeholder="City" class="metadata-input">
+							</div>
+
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="administrative_area_level_1"  id="metadata-sample-state" data-mini="true" data-clear-btn="false"type="text" placeholder="State" class="metadata-input">
+							</div>
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="country" id="metadata-sample-country" data-mini="true" data-clear-btn="false" type="text" placeholder="Country" class="metadata-input">
+							</div>
+
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="lat" id="metadata-sample-lat" data-mini="true" data-clear-btn="false" type="text" placeholder="Latitude" class="metadata-input">
+							</div>
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="lng" id="metadata-sample-lng" data-mini="true" data-clear-btn="false" type="text" placeholder="Longitude" class="metadata-input">
+							</div>
 						</div>
-						<div id="edge-pg-sequencer-options-ion">
-							<select data-mini="true" name="edge-pg-sequencer-ion" id="edge-pg-sequencer-ion">
-								<option value="Ion S5">Ion S5</option>
-								<option value="Ion PGM">Ion PGM</option>
-								<option value="Ion Proton">Ion Proton</option>
-							</select>
-						</div>
-						<div id="edge-pg-sequencer-options-nan">
-							<select data-mini="true" name="edge-pg-sequencer-nan" id="edge-pg-sequencer-nan">
-								<option value="MinIon">MinIon</option>
-							</select>
-						</div>
-						<div id="edge-pg-sequencer-options-pac">
-							<select data-mini="true" name="edge-pg-sequencer-pac" id="edge-pg-sequencer-pac">
-								<option value="RS II">RS II</option>
-								<option value="Sequel">Sequel</option>
-							</select>
-						</div>
-		                	</div>
-					<div class="ui-field-contain">
-						<label for="edge-pg-seq-date">Sequencing Date</label>
-						<input type="date" data-mini="true" data-clear-btn="false" name="edge-pg-seq-date" id="edge-pg-seq-date" maxlength="30">
+
+						<!-- end geo -->
 					</div>
-				
+				</div>
+				<br/><br/>
+
+				<div class="ui-corner-all custom-corners">
+					<div class="ui-bar ui-bar-d">
+						<b><em>Experiment</em></b><a href="#" class="tooltip ui-btn ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn ui-nodisc-icon ui-alt-icon" title="Describe the experimental setup."></a>
+					</div>
+					<div class="ui-body ui-body-a ui-corner-all">
+						<div class="ui-field-contain">
+							<label for="metadata-exp-title">Experiment Title</label>
+							 <input type="text" id="metadata-exp-title" name="metadata-exp-title" placeholder="Experiment Title" class="metadata-input">
+						</div>
+						<div class="ui-field-contain">
+							<label for="metadata-seq-center">Sequencing Center</label>
+							 <input type="text" id="metadata-seq-center" name="metadata-seq-center" placeholder="Enter a new sequencing center or select an existing center from a list by entering a key word" class="metadata-input">
+						</div>
+						<div class="ui-field-contain" id="seq-center-list-div" style="display:none;">
+							<label for="edge-seq-center-list"></label>
+							<div class="dblist-seq-center">
+							<ul data-role="listview" data-mini="true" data-inset="true" data-filter="true" data-filter-reveal="true" data-input="#metadata-seq-center" id="edge-seq-center-list">
+						 	</ul>
+							</div>
+						</div>
+						<div class="ui-field-contain">
+							<label for="metadata-sequencer">Sequencer</label>
+							 <input type="text" id="metadata-sequencer" name="metadata-sequencer" placeholder="Enter a new sequencer or select an existing sequencer from a list by entering a key word" class="metadata-input">
+						</div>
+						<div class="ui-field-contain" id="sequencer-list-div" style="display:none;">
+							<label for="edge-sequencer-list"></label>
+							<div class="dblist-sequencer">
+							<ul data-role="listview" data-mini="true" data-inset="true" data-filter="true" data-filter-reveal="true" data-input="#metadata-sequencer" id="edge-sequencer-list">
+						 	</ul>
+							</div>
+						</div>
+
+						<div class="ui-field-contain">
+							<label for="metadata-seq-date">Sequencing Date</label>
+							<input type="text" data-role="date" data-mini="true" data-clear-btn="false" name="metadata-seq-date" id="metadata-seq-date" maxlength="30" class="metadata-input metadata-input-date">
+						</div>
+					</div>
+				</div>
+				<br/><br/>
+
+				<div class="ui-corner-all custom-corners">
+					<div class="ui-bar ui-bar-d">
+						<b><em>Other</em></b><a href="#popupInfo-other" data-rel="popup" data-transition="pop" class="my-tooltip-btn ui-btn ui-alt-icon ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext" title="Learn more">Learn more</a>
+						<div data-role="popup" id="popupInfo-other" class="ui-content" data-theme="a" style="max-width:350px;">
+							<p>Enter your own metadata as:<br>field1=value1<br>field2=value2<br>field3=value3<br>...<br></p>
+						</div>
+					</div>
+					<div class="ui-body ui-body-a ui-corner-all">
+						<div class="ui-field-contain">
+							<label for="metadata-other">User Defined Metadata</label>
+							<textarea data-mini="true" rows="8" name="metadata-other" id="metadata-other" class="metadata-input"></textarea>
+						</div>
+					</div>
+				</div>
+
 			</div>
-			<br><br>
+			<br/><br/>
 		</div>
-		</div>
+	</div>
 <!-- END sample metadata -->
-
-
 
 		<p></p>
 		<h2 class="edge-main-pipeline-input">Choose Processes / Analyses</h2>
@@ -594,13 +651,12 @@ This website is available for use with publicly available data, while local stan
 					<label for="edge-pp-sw">Pre-processing</label>
 				</div>
 			</h4>
-			<div data-role="tabs">
-				<div data-role="navbar">
-					<ul>
-						<li><a href="#edge-qc-parameters" class="ui-btn-active"> a. Quality Trim and Filter</a></li>
-						<li><a href="#edge-hostr-parameters" >b. Host Removal</a></li>
-					</ul>
+			<div class="edge-tabs" >
+				<div class="ui-grid-a">
+					<div class="ui-block-a"><a href="#" data-id="edge-qc-parameters" class="ui-btn ui-mini ui-btn-active"> a. Quality Trim and Filter</a></div>
+					<div class="ui-block-b"><a href="#" data-id="edge-hostrm-parameters" class="ui-btn ui-mini">b. Host Removal</a></div>
 				</div>
+			</div>
 			<div id="edge-qc-parameters">
 			<div class="ui-field-contain">
 				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
@@ -613,7 +669,7 @@ This website is available for use with publicly available data, while local stan
 			</div>
 
 			<div class="ui-field-contain">
-				<label for="edge-qc-q" class='tooltip' id="qc-q-tooltip">Trim Quality Level</label>
+				<label for="edge-qc-q">Trim Quality Level<a href="#" class="tooltip ui-btn ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" id="qc-q-tooltip"></a></label>
 				<input type="number" name="edge-qc-q" id="edge-qc-q" data-mini="true" data-clear-btn="true" value="5">
 			</div>
 			<div class="ui-field-contain">
@@ -625,17 +681,26 @@ This website is available for use with publicly available data, while local stan
 				<input type="number" name="edge-qc-minl" id="edge-qc-minl" data-mini="true" data-clear-btn="true" value="50">
 			</div>
 			<div class="ui-field-contain">
-				<label for="edge-qc-n" class='tooltip' title="Trimmed read has more than this number of continuous base 'N' will be discarded." >"N" Base Cutoff</label>
+				<label for="edge-qc-n">"N" Base Cutoff<a href="#" class="tooltip ui-btn  ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="Trimmed read has more than this number of continuous base 'N' will be discarded." ></a></label>
 				<input type="number" name="edge-qc-n" id="edge-qc-n" data-mini="true" data-clear-btn="true" value="0">
 			</div>
 			<div class="ui-field-contain">
-				<label for="edge-qc-lc" class='tooltip' title="Maximum fraction of mono-/di-nucleotide sequence" >Low Complexity Filter Ratio</label>
+				<label for="edge-qc-lc">Low Complexity Filter<a href="#" class="tooltip ui-btn ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="Maximum fraction of mono-/di-nucleotide sequence" ></a></label>
 				<input type="range" name="edge-qc-lc" id="edge-qc-lc" data-mini="true" data-highlight="true" min="0.0" max="1.0" value="0.85" step=".01">
 			</div>
 			<div class="ui-field-contain input-type-file">
 				<label for="edge-qc-adapter">Adapter FASTA</label>
 				<input data-mini="true" name="edge-qc-adapter" id="edge-qc-adapter" type="text" placeholder="(optional) absolute file path/select file">
 				<div class="edge-file-selector"><a href='#edge_file_dialog' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' data-mini="true" class="ui-btn ui-shadow ui-corner-all ui-icon-bullets ui-btn-icon-notext">file</a></div>
+			</div>
+			<div class="ui-field-contain">
+				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
+					<legend>Trim polyA</legend>
+					<input type="radio" data-mini="true" name="edge-qc-polyA" id="edge-qc-polyA1" value="1">
+					<label for="edge-qc-polyA1">On</label>
+					<input type="radio" data-mini="true" name="edge-qc-polyA" id="edge-qc-polyA2" value="0" checked="checked">
+					<label for="edge-qc-polyA2">Off</label>
+				</fieldset>
 			</div>
 			<!--<div class="ui-field-contain">
 				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
@@ -645,7 +710,7 @@ This website is available for use with publicly available data, while local stan
 					<input type="radio" data-mini="true" name="edge-qc-phix" id="edge-qc-phix2" value="0" checked="checked">
 					<label for="edge-qc-phix2">Off</label>
 				</fieldset>
-			</diav>-->
+			</div>-->
 			<div class="ui-field-contain">
 				<label for="edge-qc-5end">Cut #bp from 5'-end</label>
 				<input type="number" name="edge-qc-5end" id="edge-qc-5end" data-mini="true" data-clear-btn="true" value="0">
@@ -655,7 +720,7 @@ This website is available for use with publicly available data, while local stan
 				<input type="number" name="edge-qc-3end" id="edge-qc-3end" data-mini="true" data-clear-btn="true" value="0">
 			</div>
 			</div> <!--edge-qc-parameters-->
-			<div id="edge-hostr-parameters">
+			<div id="edge-hostrm-parameters">
 			<div class="ui-field-contain">
 				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
 					<legend>Run Host Removal</legend>
@@ -673,12 +738,12 @@ This website is available for use with publicly available data, while local stan
 			</div>
 			<p class="edge-center">and/or</p>
 			<div class="ui-field-contain input-type-file">
-				<label for="edge-hostrm-file">Host FASTA File</label>
+				<label for="edge-hostrm-file">Host FASTA File<a href="#" class="tooltip ui-btn ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn ui-nodisc-icon ui-alt-icon" title="EDGE will do 'bwa index' the input HOST FASTA. Please wait this HOST Removal step of the project run finished before using the HOST FASTA for new run again. Otherwise, the index step will conflict each other."></a></label>
 				<input type="text" name="edge-hostrm-file" id="edge-hostrm-file" data-mini="true" placeholder="absolute file path/select file">
 				<div class="edge-file-selector"><a href='#edge_file_dialog' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' data-mini="true" class="ui-btn ui-shadow ui-corner-all ui-icon-bullets ui-btn-icon-notext">file</a></div>
 			</div>
 			<div class="ui-field-contain">
-				<label for="edge-hostrm-similarity" class='tooltip' title='(Reads aligned bases) / (Reads length) x 100' >Similarity (%)</label>
+				<label for="edge-hostrm-similarity">Similarity (%)<a href="#" class="tooltip ui-btn ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title='(Reads aligned bases) / (Reads length) x 100' ></a></label>
 				<input type="number" name="edge-hostrm-similarity" id="edge-hostrm-similarity" data-mini="true" data-clear-btn="true" value="90">
 			</div>
 			<!--
@@ -688,7 +753,6 @@ This website is available for use with publicly available data, while local stan
 			</div>
 			-->
 			</div><!--edge-hostr-parameters-->
-			</div><!--data-role= tabs-->
 		</div>
 		<div data-role="collapsible" data-collapsed-icon="carat-d" data-expanded-icon="carat-u">
 			<h4>
@@ -699,13 +763,12 @@ This website is available for use with publicly available data, while local stan
 					<label for="edge-assembly-sw">Assembly and Annotation</label>
 				</div>
 			</h4>
-			<div data-role="tabs">
-				<div data-role="navbar">
-					<ul>
-						<li><a href="#edge-assembly-parameters" class="ui-btn-active"> a. Assembly</a></li>
-						<li><a href="#edge-annotation-parameters" >b. Annotation</a></li>
-					</ul>
+			<div class="edge-tabs">
+				<div class="ui-grid-a">
+					<div class="ui-block-a"><a href="#" data-id="edge-assembly-parameters" class="ui-btn ui-mini ui-btn-active"> a. Assembly</a></div>
+					<div class="ui-block-b"><a href="#" data-id="edge-annotation-parameters" class="ui-btn ui-mini">b. Annotation</a></div>
 				</div>
+			</div>
 			<div id="edge-assembly-parameters">
 			<div class="ui-field-contain">
                         	<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
@@ -742,22 +805,14 @@ This website is available for use with publicly available data, while local stan
 			<div id="edge-spades-parameters">
 				<p class="edge_tool_note">SPAdes performs well on isolates as well as single cell data but it may not work on larger genomes, and it takes more computational resource. PacBio CLR and Oxford Nanopore reads are used for gap closure and repeat resolution.</p>
 				<div class="ui-field-contain">
-				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
-					<legend class="tooltip" title="metaSPAdes supports only a single paired-end library.">Metagenome Data</legend>
-					<input type="radio" data-mini="true" name="edge-spades-mtg-sw" id="edge-spades-mtg-sw1" value="1">
-					<label for="edge-spades-mtg-sw1">Yes</label>
-					<input type="radio" data-mini="true" name="edge-spades-mtg-sw" id="edge-spades-mtg-sw2" value="0" checked>
-					<label for="edge-spades-mtg-sw2">No</label>
-				</fieldset>
-				</div>
-				<div class="ui-field-contain">
-				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
-					<legend>Single Cell Data</legend>
-					<input type="radio" data-mini="true" name="edge-spades-sc-sw" id="edge-spades-sc-sw1" value="1">
-					<label for="edge-spades-sc-sw1">Yes</label>
-					<input type="radio" data-mini="true" name="edge-spades-sc-sw" id="edge-spades-sc-sw2" value="0" checked>
-					<label for="edge-spades-sc-sw2">No</label>
-				</fieldset>
+					<label for="edge-spades-algorithm">Algorithm</label>
+					<select id="edge-spades-algorithm" data-mini="true" name="edge-spades-algorithm" data-native-menu="false">
+						<option value="default">Default</option>
+						<option value="singlecell">Single-cell (MDA)</option>
+						<option value="metagenome">Metagenome (metaSPAdes)</option>
+						<option value="plasmid">Plasmids (plasmidSPAdes)</option>
+						<option value="rna">RNA (rnaSPAdes)</option>
+					</select>
 				</div>
 				<div class="ui-field-contain input-type-file">
 					<label for="edge-spades-pacbio-file">Pacbio Subreads Fasta/q</label>
@@ -773,7 +828,7 @@ This website is available for use with publicly available data, while local stan
 			<div id="edge-megahit-parameters">
 				<p class="edge_tool_note">MEGAHIT is an ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph which achieves low memory assembly. </p>
 				<div class="ui-field-contain">
-					<label for="edge-megahit-preset" id="edge-megahit-preset-l" class="tooltip">Preset</label>
+					<label for="edge-megahit-preset">Preset<a href="#" class="tooltip ui-btn ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" id="edge-megahit-preset-l"></a></label>
 					<select id="edge-megahit-preset" data-mini="true" name="edge-megahit-preset" data-native-menu="false">
 						<option value="meta">meta</option>
 						<option value="meta-sensitive">meta-sensitive</option>
@@ -798,7 +853,7 @@ This website is available for use with publicly available data, while local stan
 			<div class="edge-right">|<a href="#" id="edge-r2c-toggle" class="edge-additional-options-toggle" > additional options </a>|</div>
 			<div id="edge-r2c-options" class="edge-additional-options">
 				<div class="ui-field-contain">
-					<label for="edge-r2c-aligner-options" class="tooltip edge-aligner-options" >Aligner Options</label>
+					<label for="edge-r2c-aligner-options">Aligner Options<a href="#" class="tooltip ui-btn ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn edge-aligner-options" ></a></label>
 					<input type="text" data-mini="true" data-clear-btn="false" name="edge-r2c-aligner-options" id="edge-r2c-aligner-options" placeholder="(optional)">
 				</div>
 				<div class="ui-field-contain">
@@ -843,8 +898,8 @@ This website is available for use with publicly available data, while local stan
 				<label for="edge-anno-kingdom3">Mitochondria</label>
 				<input type="radio" name="edge-anno-kingdom" id="edge-anno-kingdom4" value="Viruses">
 				<label for="edge-anno-kingdom4">Viruses</label>
-				<input type="radio" name="edge-anno-kingdom" id="edge-anno-kingdom5" value="Others">
-				<label for="edge-anno-kingdom5">Others</label>
+				<input type="radio" name="edge-anno-kingdom" id="edge-anno-kingdom5" value="Metagenome">
+				<label for="edge-anno-kingdom5">Metagenome</label>
 			</fieldset>
 			<p class="edge_tool_note">Please choose the genome type you would like to annotate for Prokka to do genome annotation.</p>
 			</div>
@@ -857,7 +912,6 @@ This website is available for use with publicly available data, while local stan
 			<p class="edge_tool_note">Please provide the reference/source annotation (Genbank file), EDGE will use RATT to transfer the annotation from the reference genome. The reference genome must be close relative to the sample.</p>
                         </div>
 			</div> <!-- edge-annotation-parameters -->
-			</div> <!-- data-role="tabs" --> 
 		</div>
 
 		<div data-role="collapsible" data-collapsed-icon="carat-d" data-expanded-icon="carat-u">
@@ -878,7 +932,7 @@ This website is available for use with publicly available data, while local stan
 			</div>
 			<p class="edge-center">and/or</p>
 			<div id="edge-ref-file-block1" class="ui-field-contain input-type-file edge-ref-file-block">
-				<label for="edge-ref-file">Reference genome</label>
+				<label for="edge-ref-file-1">Reference genome</label>
 				<input type="text" data-mini="true" name="edge-ref-file" id="edge-ref-file-1" placeholder="absolute FASTA/GenBank file path/select file">
 				<div class="edge-file-selector">
 				<a href='#edge_file_dialog' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' data-mini="true" class="ui-btn ui-shadow ui-corner-all ui-icon-bullets ui-btn-icon-notext">file</a>
@@ -898,7 +952,7 @@ This website is available for use with publicly available data, while local stan
 			<div class="edge-right">|<a href="#" id="edge-r2g-toggle" class="edge-additional-options-toggle"> additional options </a>|</div>
 			<div id="edge-r2g-options" class="edge-additional-options">
 				<div class="ui-field-contain">
-					<label for="edge-r2g-aligner-options" class="tooltip edge-aligner-options">Aligner Options</label>
+					<label for="edge-r2g-aligner-options">Aligner Options<a href="#" class="tooltip ui-btn ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn edge-aligner-options"></a></label>
 					<input type="text" data-mini="true" data-clear-btn="false" name="edge-r2g-aligner-options" id="edge-r2g-aligner-options" placeholder="(optional)">
 				</div>
 				<div class="ui-field-contain">
@@ -940,39 +994,9 @@ This website is available for use with publicly available data, while local stan
 					</fieldset>
 				</div>
 			</div>
-<!--
-			<li>Unmapped-read Classification</li>
-			<div class="ui-field-contain" id="edge-taxa-tool-select-unmapped">
-				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
-					<legend>Classification Tool</legend>
-					<label for="edge-taxa-enabled-tools" class="select">Run with following databases</label>
-					<select name="edge-taxa-enabled-tool-unmapped" id="edge-taxa-enabled-tool-unmapped" data-mini="true" data-native-menu="false" data-icon="grid" data-iconpos="right">
-						<option>Choose Profiling Tools:</option>
-						<optgroup label="GOTTCHA Bacterial Databases">
-							<option value="gottcha-genDB-b"> GOTTCHA Genus</option>
-							<option value="gottcha-speDB-b"> GOTTCHA Species </option>
-							<option value="gottcha-strDB-b"> GOTTCHA Strain</option>
-						</optgroup>
-						<optgroup label="GOTTCHA Viral Databases">
-							<option value="gottcha-genDB-v"> GOTTCHA Genus</option>
-							<option value="gottcha-speDB-v"> GOTTCHA Species</option>
-							<option value="gottcha-strDB-v"> GOTTCHA Strain</option>
-						</optgroup>
-
-						<optgroup label="Reads Mapping">
-							<option value="bwa," selected="">Reads Mapping (BWA against RefSeq)</option>
-						</optgroup>
-						<optgroup label="Other Tools">
-							<option value="metaphlan">MetaPhlAn</option>
-							<option value="kraken_mini">Kraken (mini database)</option>
-							<option value="metaphyler-srv">Metaphyler (Short Read Version)</option>
-						</optgroup>
-					</select>
-				</fieldset>
-			</div>
--->
 		</div>
-
+		
+		<!-- Taxonomy classification -->
 		<div data-role="collapsible" data-collapsed-icon="carat-d" data-expanded-icon="carat-u">
 			<h4>
 				<div class="ui-field-contain edge-collapsible-options">
@@ -994,10 +1018,9 @@ This website is available for use with publicly available data, while local stan
 					<label for="edge-taxa-allreads2">No</label>
 				</fieldset>
 			</div>
-			<p class="edge_tool_note">EDGE uses multiple tools for taxonomy classification including GOTTCHA (bacterial & viral databases), MetaPhlAn, Kraken and reads mapping to NCBI RefSeq using BWA.</p>
 			<div class="ui-field-contain" id="edge-taxa-tool-select">
 				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
-					<legend>Classification Tools</legend>
+					<legend>Classification Tools<a href="#" class="tooltip ui-btn ui-alt-icon ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="EDGE uses multiple tools for taxonomy classification including GOTTCHA (bacterial & viral databases), MetaPhlAn, Kraken and reads mapping to NCBI RefSeq using BWA."></a></legend>
 					<label for="edge-taxa-enabled-tools" class="select">Run With Following Databases</label>
 					<select name="edge-taxa-enabled-tools" id="edge-taxa-enabled-tools" multiple="multiple" data-mini="true" data-native-menu="false" data-icon="grid" data-iconpos="right">
 						<option>Choose Classification Tools:</option>
@@ -1011,7 +1034,7 @@ This website is available for use with publicly available data, while local stan
 							<option value="gottcha-speDB-v" selected=""> GOTTCHA Species</option>
 							<option value="gottcha-strDB-v" selected=""> GOTTCHA Strain</option>
 						</optgroup>
-
+                        
 						<!--
 						<optgroup label="GOTTCHA2 Bacterial Databases">
 						    <option value="gottcha2-speDB-b"> GOTTCHA2 Species</option>
@@ -1020,8 +1043,15 @@ This website is available for use with publicly available data, while local stan
 						    <option value="gottcha2-genDB-v" selected=""> GOTTCHA2 Genus</option>
 						    <option value="gottcha2-speDB-v" selected=""> GOTTCHA2 Species</option>
 						</optgroup>
+						 <optgroup label="GOTTCHA2 Eukaryotic Databases">
+                                                    <option value="gottcha2-speDB-e-inv"> GOTTCHA2 Species Invertebrate (inv)</option>
+                                                    <option value="gottcha2-speDB-e-ptz"> GOTTCHA2 Species Protozoa (ptz)</option>
+                                                    <option value="gottcha2-speDB-e-ptg"> GOTTCHA2 Species Pathogen (ptg)</option>
+                                                </optgroup>
+                        <optgroup label="PanGIA Databases">
+						    <option value="pangia"> PanGIA NCBI_genomes_p_GRCh38 </option>
+						</optgroup>
 						-->
-
 						<optgroup label="Reads Mapping">
 							<option value="bwa" selected="">Reads Mapping (BWA against RefSeq)</option>
 						</optgroup>
@@ -1032,11 +1062,41 @@ This website is available for use with publicly available data, while local stan
 					</select>
 				</fieldset>
 			</div>
+			<div class="edge-right">|<a href="#" id="edge-taxa-toggle" class="edge-additional-options-toggle" > use custom databases </a>|</div>
+ 			<div id="edge-taxa-options" class="edge-additional-options">
+ 				<div class="ui-field-contain input-type-file">
+					<label for="edge-taxa-custom-db-tool" class="select">Custom DB Tool</label>
+					<select name="edge-taxa-custom-db-tool" id="edge-taxa-custom-db-tool" data-mini="true" data-native-menu="false">
+						<option value="GOTTCHA-genDB-b"> GOTTCHA Bacteria Genus</option>
+						<option value="GOTTCHA-speDB-b"> GOTTCHA Bacteria Species </option>
+						<option value="GOTTCHA-strDB-b"> GOTTCHA Bacteria Strain</option>
+						<option value="GOTTCHA-genDB-v"> GOTTCHA Virus Genus</option>
+						<option value="GOTTCHA-speDB-v"> GOTTCHA Virus Species</option>
+						<option value="GOTTCHA-strDB-v"> GOTTCHA Virus Strain</option>
+						<!--
+						<option value="GOTTCHA2-genDB-v"> GOTTCHA2 Virus Genus</option>
+						<option value="GOTTCHA2-speDB-v"> GOTTCHA2 Virus Species</option>
+						<option value="GOTTCHA2-speDB-b"> GOTTCHA2 Bacteria Species </option>
+						<option value="pangia"> PanGIA database </option>
+						-->
+						<option value="BWA" selected="">Reads Mapping (BWA against custom DB)</option>
+						<option value="Metaphlan">MetaPhlAn</option>
+						<option value="Kraken">Kraken</option>
+					</select>
+					<a href="#" class="btnAdd-edge-taxa-custom-db" data-role="button" data-icon="plus" data-iconpos="notext">Add</a>
+				</div>
+ 				<div id="edge-taxa-custom-db-block1" class="edge-taxa-custom-db-block ui-field-contain input-type-file" style="display:none">
+					<label for="edge-taxa-custom-db-file-1">Custom Database</label>
+					<input data-mini="true" name="edge-taxa-custom-db-file" id="edge-taxa-custom-db-file-1" type="text" placeholder="absolute file path/select file">
+					<div class="edge-file-selector"><a href='#edge_file_dialog' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' data-mini="true" class="ui-btn ui-shadow ui-corner-all ui-icon-bullets ui-btn-icon-notext">file</a>
+					</div>
+				</div>
+			</div>
+
 			<li>Contig-based Taxonomy Classification</li>
-			<p class="edge_tool_note">EDGE will map contigs to NCBI genomes and make a taxonomic inference for each contig.</p>
 			<div class="ui-field-contain">
 				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
-					<legend>Contigs Classification</legend>
+					<legend>Contigs Classification<a href="#" class='tooltip ui-btn ui-alt-icon ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn' title="EDGE will map contigs to NCBI genomes and make a taxonomic inference for each contig."></a></legend>
 					<input type="radio" data-mini="true" name="edge-contig-taxa-sw" id="edge-contig-taxa-sw1" value="1" checked="checked">
 					<label for="edge-contig-taxa-sw1">Yes</label>
 					<input type="radio" data-mini="true" name="edge-contig-taxa-sw" id="edge-contig-taxa-sw2" value="0">
@@ -1093,7 +1153,7 @@ This website is available for use with publicly available data, while local stan
 			<p class="edge-center">or</p>
 			<p class="edge_tool_note">Select/Add Genomes or SRA Reads: The same species or at least within the same genus are recommended.</p>
 			<div class="ui-field-contain input-type-file">
-				<label for="edge-phylo-ref-select" class='tooltip' title="This workflow is a whole genome SNP based analysis that requires at minimum one reference genome and at least three dataset for building the phylogenetic tree. Because this analysis is based on read alignments and/or contig alignments to the reference genome(s), we strongly recommend only selecting genomes that can be adequately aligned at the nucleotide level (i.e. ~90% identity or better).">Select Genome(s)</label>
+				<label for="edge-phylo-ref-select">Select Genome(s)<a href="#" class="tooltip ui-btn ui-alt-icon ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="This workflow is a whole genome SNP based analysis that requires at minimum one reference genome and at least three dataset for building the phylogenetic tree. Because this analysis is based on read alignments and/or contig alignments to the reference genome(s), we strongly recommend only selecting genomes that can be adequately aligned at the nucleotide level (i.e. ~90% identity or better)."></a></label>
 				<select id="edge-phylo-ref-select" data-mini="true" name="edge-phylo-ref-select" data-native-menu="false" multiple="multiple">
 					<option disabled>Search genomes...</option>
 				</select>
@@ -1113,7 +1173,7 @@ This website is available for use with publicly available data, while local stan
 				
 			</div>
 			<div class="ui-field-contain">
-				<label for=edge-phylo-sra-acc" class="tooltip" id="edge-phylo-sra-acc-tooltip">SRA Accessions</label>
+				<label for=edge-phylo-sra-acc">SRA Accessions<a href="#" class="tooltip ui-btn ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" id="edge-phylo-sra-acc-tooltip"></a></label>
 				<input data-mini="true" type="text" name="edge-phylo-sra-acc" id="edge-phylo-sra-acc" placeholder="ex:SRR2133399,SRR576632">
 			</div>
 			
@@ -1154,7 +1214,7 @@ This website is available for use with publicly available data, while local stan
 				</div>
 			<li>Contig-based (ORF) Specialty Gene Analysis</li>
 				<p class="edge_tool_note">EDGE will use <a href="http://huttenhower.sph.harvard.edu/shortbred" target="_blank">ShortBRED</a> to search the ORFs on the contigs for Virulence genes from <a href="http://www.mgc.ac.cn/VFs/main.htm" target="_blank">VFDB.</a></p>
-				 <p class="edge_tool_note">EDGE will use <a href="https://card.mcmaster.ca/analyze/rgi" target="_blank">RGI (Resistance Gene Identifier)</a> to search the ORFs on the contigs for Antibiotic Resistance genes from <a href="https://card.mcmaster.ca" target="_blank">CARD</a>.</p>
+				<p class="edge_tool_note">EDGE will use <a href="https://card.mcmaster.ca/analyze/rgi" target="_blank">RGI (Resistance Gene Identifier)</a> to search the ORFs on the contigs for Antibiotic Resistance genes from <a href="https://card.mcmaster.ca" target="_blank">CARD</a>.</p>
 				<div class="ui-field-contain">
 					<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
 						<legend>ORF Specialty Genes Profiling</legend>
@@ -1164,15 +1224,15 @@ This website is available for use with publicly available data, while local stan
 						<label for="edge-orfs-sg-sw2">No</label>
 					</fieldset>
 				</div>
-		<ol>
+			</ol>
 			<div class="edge-right">|<a href="#" id="edge-sg-toggle" class="edge-additional-options-toggle" > additional options </a>|</div>
 			<div id="edge-sg-options" class="edge-additional-options">
 				<div class="ui-field-contain">
-					<label for="edge-sg-identity-options" class="tooltip edge-identity-options">ShortBRED Minimum Percent Identity</label>
+					<label for="edge-sg-identity-options" class="edge-identity-options">ShortBRED Minimum Percent Identity</label>
 					<input type="number" data-mini="true" data-clear-btn="false" name="edge-sg-identity-options" id="edge-sg-identity-options" value=95>
 				</div>
 				<div class="ui-field-contain">
-					<label for="edge-sg-length-options" class="tooltip edge-length-options">ShortBRED Minimum Percent Length</label>
+					<label for="edge-sg-length-options" class="edge-length-options">ShortBRED Minimum Percent Length</label>
 					<input type="number" data-mini="true" data-clear-btn="false" name="edge-sg-length-options" id="edge-sg-length-options" value=95>
 				</div>
 			</div>
@@ -1186,14 +1246,12 @@ This website is available for use with publicly available data, while local stan
 					<label for="edge-primer-sw">PCR Primer Analysis</label>
 				</div>
 			</h4>
-			<div data-role="tabs">
-				<div data-role="navbar">
-					<ul>
-						<li><a href="#edge-primer-valid-parameters" class="ui-btn-active"> a. Primer Validation</a></li>
-						<li><a href="#edge-primer-design-parameters" >b. Primer Design</a></li>
-					</ul>
+			<div class="edge-tabs">
+				<div class="ui-grid-a">
+					<div class="ui-block-a"><a href="#" data-id="edge-primer-valid-parameters" class="ui-btn ui-mini ui-btn-active"> a. Primer Validation</a></div>
+					<div class="ui-block-b"><a href="#" data-id="edge-primer-design-parameters" class="ui-btn ui-mini">b. Primer Design</a></div>
 				</div>
-	
+			</div>
 			<div id="edge-primer-valid-parameters">
 			<div class="ui-field-contain">
 				<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
@@ -1269,7 +1327,6 @@ This website is available for use with publicly available data, while local stan
 				<input type="number" data-mini="true" data-clear-btn="true" name="edge-primer-adj-num" id="edge-primer-adj-num" min="1" max="10" value="5">
 			</div>
 			</div> <!-- edge-primer-design-parameters -->
-			</div> <!-- data-role="tabs" -->
 		</div>
 		</div> <!--Choose Proceses collapsible for edge-main-pipeline-input"-->
 		<div class="edge-qiime-pipeline-input">
@@ -1278,7 +1335,7 @@ This website is available for use with publicly available data, while local stan
 				<ol type="a">
 				<li>Barcode Options</li>
 				<div id="edge-qiime-barcode-fq-file-block1" class="ui-field-contain input-type-file edge-qiime-barcode-fq-file-block">
-					<label for="edge-qiime-barcode-fq-file-input" class="tooltip" id="edge-qiime-barcode-fq-file-tooltip">Barcode Fastq File</label>
+					<label for="edge-qiime-barcode-fq-file-input-1">Barcode Fastq File<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" id="edge-qiime-barcode-fq-file-tooltip"></a></label>
 					<input data-mini="true" type="text" name="edge-qiime-barcode-fq-file-input" id="edge-qiime-barcode-fq-file-input-1" placeholder="absolute file path/select file">
 					<div class="edge-file-selector"><a href='#edge_file_dialog' aria-haspopup='true' data-rel='popup' data-position-to='window' data-transition='pop' data-mini="true" class="ui-btn ui-shadow ui-corner-all ui-icon-bullets ui-btn-icon-notext">file</a>
 					<a href="#" class="btnAdd-edge-qiime-barcode-fq-file" data-role="button" data-icon="plus" data-iconpos="notext">Add</a>
@@ -1292,7 +1349,7 @@ This website is available for use with publicly available data, while local stan
 				<li>Reads Filters</li>
 				<div class="ui-field-contain">
 					<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
-					<legend class="tooltip" title="The ascii offset to use when decoding phred scores (either 33 or 64). Offset 64 is used for old illumina Fastq file.">Quality Offset</legend>
+					<legend>Quality Offset<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="The ascii offset to use when decoding phred scores (either 33 or 64). Offset 64 is used for old illumina Fastq file."></a></legend>
 						<input type="radio" data-mini="true" name="edge-qiime-phred-offset" id="edge-qiime-phred-offset1" value="33" checked="checked">
 						<label for="edge-qiime-phred-offset1">Phred+33</label>
 						<input type="radio" data-mini="true" name="edge-qiime-phred-offset" id="edge-qiime-phred-offset2" value="64">
@@ -1300,21 +1357,21 @@ This website is available for use with publicly available data, while local stan
 					</fieldset>
 				</div>
 				<div class="ui-field-contain">
-					<label for="edge-qiime-phred-quality-threshold" class='tooltip' title="The maximum unacceptable Phred quality score (e.g.,for Q20 and better, specify -q 19)">PHRED Quality Threshold</label>
+					<label for="edge-qiime-phred-quality-threshold">PHRED Quality<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="The maximum unacceptable Phred quality score (e.g.,for Q20 and better, specify -q 19)"></a></label>
 					<input type="number" data-mini="true" data-clear-btn="true" name="edge-qiime-phred-quality-threshold" id="edge-qiime-phred-quality-threshold" min="1" max="40" value="19">
 				</div>
 				<div class="ui-field-contain">
-					<label for="edge-qiime-max-n"  class='tooltip' title="Maximum number of N characters allowed in a sequence to retain it -- this is applied after quality trimming, and is total over combined paired end reads if applicable">Max "N" base</label>
+					<label for="edge-qiime-max-n">Max "N" base<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="Maximum number of N characters allowed in a sequence to retain it -- this is applied after quality trimming, and is total over combined paired end reads if applicable"></a></label>
 					<input type="number" data-mini="true" data-clear-btn="true" name="edge-qiime-max-n" id="edge-qiime-max-n" min="0" max="100" value="1">
 				</div>
 				<div class="ui-field-contain">
-					<label for="edge-qiime-min-per-read-length-fraction" class="tooltip" title="The minimum number of consecutive high quality base calls to include a read (per single end read) as a fraction of the input read length.">Min Per Read Length Fraction</label>
+					<label for="edge-qiime-min-per-read-length-fraction">Min Per Read Length Fraction<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="The minimum number of consecutive high quality base calls to include a read (per single end read) as a fraction of the input read length."></a></label>
 					<input type="range" name="edge-qiime-min-per-read-length-fraction" id="edge-qiime-min-per-read-length-fraction" data-mini="true" data-highlight="true" min="0.0" max="1.0" value="0.5" step=".01">
 				</div>
 				<li>OTU Clustering Options/Filters</li>
 				<!--<div class="ui-field-contain">
 					<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
-					<legend class="tooltip" id="edge-qiime-UPARSE-tooltip" >UPARSE</legend>
+					<legend>UPARSE<a href="#" class="tooltip ui-btn ui-corner-all ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" id="dge-qiime-UPARSE-tooltip"></a></legend>
 						<input type="radio" data-mini="true" name="edge-qiime-UPARSE-sw" id="edge-qiime-UPARSE-sw1" value="1">
 						<label for="edge-qiime-UPARSE-sw1">Yes</label>
 						<input type="radio" data-mini="true" name="edge-qiime-UPARSE-sw" id="edge-qiime-UPARSE-sw2" value="0" checked="checked">
@@ -1322,24 +1379,24 @@ This website is available for use with publicly available data, while local stan
 					</fieldset>
 				</div>-->
 				<div class="ui-field-contain">
-					<label for="edge-qiime-minimum-otu-size" class="tooltip" title="The minimum OTU size (in number of sequences) to retain the OTU">Minimum OTU Size</label>
+					<label for="edge-qiime-minimum-otu-size">Minimum OTU Size<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="The minimum OTU size (in number of sequences) to retain the OTU"></a></label>
 					<input type="number" data-mini="true" data-clear-btn="true" name="edge-qiime-minimum-otu-size" id="edge-qiime-minimum-otu-size" min="1" max="20" value="2">
 				</div>
 				<div class="ui-field-contain">
-					<label for="edge-qiime-similarity" class="tooltip" title="Sequence similarity threshold for clustering algorithm">Similarity</label>
+					<label for="edge-qiime-similarity">Similarity<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="Sequence similarity threshold for clustering algorithm"></a></label>
 					<input type="range" name="edge-qiime-similarity" id="edge-qiime-similarity" data-mini="true" data-highlight="true" min="0.0" max="1.0" value="0.94" step=".01">
 				</div>
 				<div class="ui-field-contain">
-					<label for="edge-qiime-sampling-depth" class="tooltip" title="Filter sample less this amount of sequences. The minimium of sequenceing depth of samples after this filter will be to use for even sub-sampling and maximum rarefaction depth. Depend on the 'biom summary table' to decide on this value for re-run.">Sequence Depth Filter</label>
+					<label for="edge-qiime-sampling-depth">Depth Filter<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="Filter sample less this amount of sequences. The minimium of sequenceing depth of samples after this filter will be to use for even sub-sampling and maximum rarefaction depth. Depend on the 'biom summary table' to decide on this value for re-run."></a></label>
 					<input type="number" data-mini="true" data-clear-btn="true" name="edge-qiime-sampling-depth" id="edge-qiime-ampling-depth" min="100" max="50000" value="1000">
 				</div>
 				
 				<div class="ui-field-contain">
-					<label for=edge-qiime-filter-taxa" class="tooltip" title="Comma-separated list of taxa to discard from OTU table e.g: p__Bacteroidetes,p__Firmicutes">Taxonomy Filter</label>
+					<label for=edge-qiime-filter-taxa">Taxonomy Filter<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="Comma-separated list of taxa to discard from OTU table e.g: p__Bacteroidetes,p__Firmicutes"></a></label>
 					<input data-mini="true" type="text" name="edge-qiime-filter-taxa" id="edge-qiime-filter-taxa" placeholder="e.g: p__Bacteroidetes,p__Firmicutes">
 				</div>
 				<div class="ui-field-contain">
-					<label for=edge-qiime-substract-ntc" class="tooltip" title="Comma-separated list of Sample ID to substarct observation count from No Template Control (NTC) and remove NTC samples from OTU table">Substract NTC</label>
+					<label for=edge-qiime-substract-ntc">Substract NTC<a href="#" class="tooltip ui-btn ui-nodisc-icon ui-corner-all ui-btn-inline ui-icon-info ui-btn-icon-notext my-tooltip-btn" title="Comma-separated list of Sample ID to substarct observation count from No Template Control (NTC) and remove NTC samples from OTU table"></a></label>
 					<input data-mini="true" type="text" name="edge-qiime-substract-ntc" id="edge-qiime-substract-ntc" placeholder="e.g: NTC_ID_01">
 				</div>
 				</ol>
@@ -1424,7 +1481,7 @@ This website is available for use with publicly available data, while local stan
 		<label for="signIn-email" class="ui-hidden-accessible">Email Address</label>
 		<input type="text" name="signIn-email" id="signIn-email" placeholder="Email Address" value="">
 		<label for="signIn-password" class="ui-hidden-accessible">Password</label>
-		<input type="password" name="signIn-password" id="signIn-password" placeholder="password" autocomplete="off" value="">
+		<input type="password" name="signIn-password" id="signIn-password" placeholder="Password" autocomplete="off" value="">
 		<a href="#dlg-invalid-credentials" data-rel="popup"  data-position-to="window" id="signIn-submit-btn" class="ui-btn ui-btn-inline ui-corner-all ui-btn-active" data-overlay-theme="b">Submit</a>
 		<label class="inline-small"><input type="checkbox" data-role="none" name="chck-rememberme" id="chck-rememberme">Remember my email</label>
 		<div class="sign-option-block">
@@ -1493,7 +1550,7 @@ This website is available for use with publicly available data, while local stan
 <form id="edge-uploadfile-form" data-ajax="false" enctype="multipart/form-data">
         <div role="main" id="edge-content-uploadfile" class="ui-content edge-content edge-main-page">
                 <h2>Upload files</h2>
-		<p class="edge_tool_note">Max file size is <span id="edge-upload-maxFileSize">5gb</span>. Allowed File types are fastq, fasta, genbank and text (txt,config,ini) and can be in gzip format. Files will be kept for 7 days.</p>
+		<p class="edge_tool_note">Max file size is <span id="edge-upload-maxFileSize">5gb</span>. Allowed File types are fastq, fasta, genbank and text (txt,config,ini) and can be in gzip format. Files will be kept for <span id="edge-upload-expiration-days">7</span> days.</p>
         	<div id="uploader">
                     <p>You are not logged in or your browser doesn't have Flash, Silverlight or HTML5 support.</p>
             	</div>
@@ -1502,8 +1559,101 @@ This website is available for use with publicly available data, while local stan
         </div> <!--  uploadfile-form -->
 </form>
 
+<form id="edgesite-form">
+        <div role="main" id="edgesite-content" class="ui-content edge-content edge-main-page">
+                <h2>EdgeSite</h2>
+		<p class="edge_tool_note">Please fill out this form before using 'Run EDGE'.</p>
+        	
+				        	
+						<div class="ui-field-contain">
+							<label for="edgesite-org">Organization Full Name</label>
+							<input type="text" data-mini="true" data-clear-btn="false" name="edgesite-org" id="edgesite-org" maxlength="30" placeholder="Your organization full name">
+						</div>
+						<div class="ui-field-contain">
+							<label for="edgesite-acronym">Acronym</label>
+							<input type="text" data-mini="true" data-clear-btn="false" name="edgesite-acronym" id="edgesite-acronym" maxlength="30" placeholder="Your organization acronym">
+						</div>
+
+						<!-- geo autocomplete -->
+
+						<div id="edgesite-geo">
+							<div class="ui-field-contain">
+								<label>Location</label>
+							      	<input name="edgesite-location" id="edgesite-geocomplete" type="text" placeholder="Type in an address to let system auto fill the location fields below">
+							</div>
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="locality" id="edgesite-city" data-mini="true" data-clear-btn="false" type="text" placeholder="City">
+							</div>
+
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="administrative_area_level_1"  id="edgesite-state" data-mini="true" data-clear-btn="false"type="text" placeholder="State">
+							</div>
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="country" id="edgesite-country" data-mini="true" data-clear-btn="false" type="text" placeholder="Country">
+							</div>
+
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="lat" id="edgesite-lat" data-mini="true" data-clear-btn="false" type="text" placeholder="Latitude">
+							</div>
+
+							<div class="ui-field-contain">
+								<label></label>
+								<input name="lng" id="edgesite-lng" data-mini="true" data-clear-btn="false" type="text" placeholder="Longitude">
+							</div>
+						</div>
+
+						<!-- end geo -->
+
+				           	<div class="ui-field-contain">
+							<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
+								<legend>Enable Sample Metadata? <a href="#" class="tooltip my-tooltip-btn ui-btn ui-alt-icon ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext" title="This function will allow you to record detailed sample information for a project/run."></a>
+								</legend>
+								<input type="radio" name="edgesite-enable-metadata" id="edgesite-enable-metadata1" value="yes" checked>
+								<label for="edgesite-enable-metadata1">Yes</label>
+								<input type="radio" name="edgesite-enable-metadata" id="edgesite-enable-metadata2" value="no">
+								<label for="edgesite-enable-metadata2">No</label>
+							</fieldset>
+				            	</div>
+
+				           	<div class="ui-field-contain" id="edgesite-share-metadata-div">
+							<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
+								<legend>Share Sample Metadata/Pathogens with BSVE? <a href="#" class="tooltip my-tooltip-btn ui-btn ui-alt-icon ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext" title="This function will allow you to send sample metadata/pathogens to BSVE database server."></a>
+								</legend>
+								<input type="radio" name="edgesite-share-metadata" id="edgesite-share-metadata1" value="yes" checked>
+								<label for="edgesite-share-metadata1">Yes</label>
+								<input type="radio" name="edgesite-share-metadata" id="edgesite-share-metadata2" value="no">
+								<label for="edgesite-share-metadata2">No</label>
+							</fieldset>
+				            	</div>
+
+				           	<div class="ui-field-contain" id="edgesite-autoshare-metadata-div">
+							<fieldset data-role="controlgroup" data-mini="true" data-type="horizontal">
+								<legend>Auto Submit Sample Metadata/Pathogens? <a href="#" class="tooltip my-tooltip-btn ui-btn ui-alt-icon ui-nodisc-icon ui-btn-inline ui-icon-info ui-btn-icon-notext" title="Auto Submit: sample metadata/pathogens will be automatically submitted to BSVE at the end of each run. Otherwise, you have to select project(s)/run(s) and submit sample metadata/pathogens menually."></a>
+								</legend>
+								<input type="radio" name="edgesite-autoshare-metadata" id="edgesite-autoshare-metadata1" value="yes" checked>
+								<label for="edgesite-autoshare-metadata1">Yes</label>
+								<input type="radio" name="edgesite-autoshare-metadata" id="edgesite-autoshare-metadata2" value="no">
+								<label for="edgesite-autoshare-metadata2">No</label>
+							</fieldset>
+				            	</div>
+
+						<div class="edge-center">
+							<input data-mini="true" type="button" id="edgesite-form-submit" data-inline="true" class="edge-center" value="Sumbit">
+							<input data-mini="true" type="button" id="edgesite-form-reset" data-inline="true" class="edge-center" value="Reset">
+						</div>
+        </div> 
+</form><!--  edgesite-form -->
+
 	<div data-role="footer" data-position="fixed" data-tap-toggle="false" class="edge-footer ui-footer ui-bar-inherit ui-footer-fixed slideup" role="contentinfo">
-		<p>EDGE version 1.5.1</p>	
+		<p>EDGE version 2.0.0</p>	
 		<a id="scroll-up-btn" href="#" class="ui-btn ui-icon-carat-u ui-btn-icon-notext ui-corner-all">No text</a>
 		<div class="edge-footer-logo">
             <a target="_new" href="http://www.lanl.gov"><img src="images/logo_LANL.png"/></a>

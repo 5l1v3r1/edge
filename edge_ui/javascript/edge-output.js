@@ -71,7 +71,7 @@ $( document ).ready(function()
 					"columns":json.columns,
 					"dom":dataTableDom,
 					"processing": true,
-					//"deferRender": true,
+					"deferRender": true,
 					"scrollX": true,
 					"destroy": true,
 					"rowCallback": function( nRow, aData, iDisplayIndex ) {
@@ -236,11 +236,6 @@ $( document ).ready(function()
 		var rankS = rank.substring(0,3);
 		$('.edge-compare-output').hide();
 		$('.edge-compare-'+ rank).show();
-	});
-	$('#edge-compare-summary-table').find('a').each(function(){
-		var projId=$(this).attr('data-pid');
-		var url = location.origin + "/edge_ui/?proj=" + projId;
-		$(this).attr('href',url);
 	});
 	$(".edge-compare-output a[data-ajax='false']").each(function(){
 		var url=$(this).attr('data-src');
@@ -468,7 +463,6 @@ $( document ).ready(function()
 			});
 		});
 	});
-
 	$('#edge-get-contigs-by-taxa').on('change',function(){
 		var taxa = $(this).val();
 		if(taxa == "0" ){

@@ -8,8 +8,6 @@ use strict;
 use FindBin qw($RealBin);
 use lib "$RealBin/../../lib";
 use JSON;
-use LWP::UserAgent;
-use HTTP::Request::Common;
 use CGI qw(:standard);
 #use CGI::Carp qw(fatalsToBrowser);
 use POSIX qw(strftime);
@@ -52,6 +50,7 @@ my $protocol = $opt{protocol} || 'http:';
 my $sid         = $opt{'sid'}|| $ARGV[4];
 my $ip          = $ARGV[5];
 $ENV{REMOTE_ADDR} = $ip if $ip;
+
 my $domain      = $ENV{'HTTP_HOST'} || 'edge-dev-master.lanl.gov';
 my ($webhostname) = $domain =~ /^(\S+?)\./;
 
@@ -75,6 +74,8 @@ $umSystemStatus = ($umSystemStatus eq "false")?0:$umSystemStatus;
 my $cluster 	= $sys->{cluster};
 my $cluster_job_prefix = $sys->{cluster_job_prefix};
 my $cluster_job_max_cpu= $sys->{cluster_job_max_cpu};
+&LoadSGEenv($sys) if ($cluster);
+
 my $list; # ref for project list
 my @projlist; # project list index
 my $prog; # progress for latest job
@@ -90,20 +91,11 @@ $info->{INFO}->{RUNCPU} = ($runcpu>1)? $runcpu :1;
 
 $info->{INFO}->{PROJLISTNUM} = $edge_projlist_num;
 
-# module on/off
-$info->{INFO}->{UMSYSTEM}= ( $sys->{user_management} )? "true":"false";
-$info->{INFO}->{UPLOAD}  = ( $sys->{user_upload} )?"true":"false";
-$info->{INFO}->{ARCHIVE} = ( -w $sys->{edgeui_archive} ) ? "true":"false";
-$info->{INFO}->{MQC}     = ( $sys->{m_qc} )?"true":"false";
-$info->{INFO}->{MAA}     = ( $sys->{m_assembly_annotation} )?"true":"false";
-$info->{INFO}->{MRBA}    = ( $sys->{m_reference_based_analysis} )?"true":"false";
-$info->{INFO}->{MTC}     = ( $sys->{m_taxonomy_classfication} )?"true":"false";
-$info->{INFO}->{MPA}     = ( $sys->{m_phylogenetic_analysis} )?"true":"false";
-$info->{INFO}->{MSGP}    = ( $sys->{m_specialty_genes_profiling} )?"true":"false";
-$info->{INFO}->{MPPA}    = ( $sys->{m_pcr_primer_analysis} )?"true":"false";
-$info->{INFO}->{MQIIME}  = ( $sys->{m_qiime} )?"true":"false";
 
-&returnStatus() if ($init);
+if ($init){
+	&loadInitSetup();
+	&returnStatus();;
+}
 #($umSystemStatus =~ /true/i)? &getUserProjFromDB():&scanNewProjToList();
 
 #check projects vital
@@ -138,8 +130,9 @@ else{
 }
 
 my $time = strftime "%F %X", localtime;
-@projlist = sort {$list->{$b}->{TIME} cmp $list->{$a}->{TIME}} keys %$list;
 my $idx;
+@projlist = sort {$list->{$b}->{TIME} cmp $list->{$a}->{TIME}} keys %$list;
+# selected project on index 0
 if( scalar @projlist ){
 	my $progs;
 	my $count=0;
@@ -149,11 +142,10 @@ if( scalar @projlist ){
 	#  2. latest running project
 	#  3. lastest project
 	$idx= ($pname)? (grep $list->{$_}->{NAME} eq $pname, @projlist)[0] : $projlist[0];
-        my @running_idxs = grep { $list->{$_}->{STATUS} eq "running" or $list->{$_}->{STATUS} =~ /unstarted|interrupted|in process/ and $list->{$_}->{NAME} ne $pname } @projlist;
-        $idx = shift @running_idxs if (scalar(@running_idxs) && !$pname);
-        $idx = $projlist[0] if (!$idx); # when given $pname does not exist.
+	my @running_idxs = grep { $list->{$_}->{STATUS} eq "running" or $list->{$_}->{STATUS} =~ /unstarted|interrupted|in process|unknown/ and $list->{$_}->{NAME} ne $pname } @projlist;
+	$idx = shift @running_idxs if (scalar(@running_idxs) && !$pname);
+	$idx = $projlist[0] if (!$idx); # when given $pname does not exist.
 	@projlist = ($idx,@running_idxs); # update running projects and focus project program info.
-
 	foreach my $i ( @projlist ) {
 		last if ($edge_projlist_num && ++$count > $edge_projlist_num);
 		my $lproj    = $list->{$i}->{NAME};
@@ -168,13 +160,14 @@ if( scalar @projlist ){
 		my $sjson    = "$proj_dir/.run.complete.status.json";
 		my $current_log      = "$proj_dir/process_current.log";
 		my $config   = "$proj_dir/config.txt";
-
-		#remove project from list if output directory has been removed
+		my $config_json = "$proj_dir/config.json";
+		($list->{$i}->{PROJCONFIG} = $config_json) =~ s/$www_root// if ($i == $idx);
+		#remove project from list if output directory has been removed	
 		unless( -e $log || -e $config){
 			delete $list->{$i};
 			next;
 		}	
-
+	
 		#status JSON
 		#if( -e $sjson ){
 		#	my $storedStatus = readListFromJson($sjson);
@@ -182,17 +175,15 @@ if( scalar @projlist ){
 		#	$progs->{$i} = $storedStatus->{PROG};
 		#	next;
 		#}
-	
 		# update current project status
 		if( -r $log ){
-			my ($p_status,$prog,$proj_start,$numcpu,$proj_desc,$proj_name,$proj_id) = &parseProcessLog($log);
+			my ($p_status,$prog,$proj_start,$numcpu,$proj_desc,$proj_name,$proj_id,$rnaPipeline) = &parseProcessLog($log);
 			$list->{$i}->{TIME} ||= $proj_start;
 			$list->{$i}->{TIME} ||= strftime "%F %X", localtime;
 			$list->{$i}->{PID} = $realpid;
 			$list->{$i}->{CPU} = $numcpu;
 			$list->{$i}->{DESC} = $proj_desc;
 			($list->{$i}->{PROJLOG} = $current_log) =~ s/$www_root//;
-
 			#for unstarted project, read steps from config file
 			$p_status = "unknown" if (!$p_status);
 			(my $tmp,$prog,$proj_start,$numcpu,$proj_desc,$proj_name,$proj_id) = &parseProcessLog($config) if $p_status =~ /unstarted|unknown|interrupted/;
@@ -203,10 +194,12 @@ if( scalar @projlist ){
 				$list->{$i}->{STATUS} = "running";
 			}
 			elsif( $p_status =~ /running/ ){
-				# the process log reports it's running, but can't find vital
-				# Unexpected exit detected
-				$list->{$i}->{STATUS} = "failed";
-				`echo "\n*** [$time] EDGE_UI: Pipeline failed (PID:$realpid). Unexpected exit detected! ***" |tee -a $log >> $proj_dir/process_current.log`;
+				unless ($rnaPipeline){
+					# the process log reports it's running, but can't find vital
+					# Unexpected exit detecteda
+					$list->{$i}->{STATUS} = "failed";
+					`echo "\n*** [$time] EDGE_UI: Pipeline failed (PID:$realpid $lproj $lprojc). Unexpected exit detected! ***" |tee -a $log >> $proj_dir/process_current.log`;
+				}
 			}
 			else{
 				$list->{$i}->{STATUS} = $p_status;
@@ -216,7 +209,6 @@ if( scalar @projlist ){
 			if ( $list->{$i}->{DBSTATUS} && ($list->{$i}->{STATUS} ne $list->{$i}->{DBSTATUS})){
 				&updateDBProjectStatus($i, $list->{$i}->{STATUS});
 			}
-
 			#if( $list->{$i}->{STATUS} eq "finished" && !-e $sjson ){
 			#	my $storedStatus;
 			#	$storedStatus->{LIST} = $list->{$i};
@@ -231,15 +223,17 @@ if( scalar @projlist ){
 	$info->{INFO}->{NAME}   = $list->{$idx}->{NAME};
 	$info->{INFO}->{PROJNAME}   = $list->{$idx}->{PROJNAME}; 
 	$info->{INFO}->{PROJCODE}   = $list->{$idx}->{PROJCODE};
-	$info->{INFO}->{PROJLOG} = $list->{$idx}->{PROJLOG};;
+	$info->{INFO}->{PROJLOG} = $list->{$idx}->{PROJLOG};
 	$info->{INFO}->{STATUS} = $list->{$idx}->{STATUS};
 	$info->{INFO}->{TIME}   = strftime "%F %X", localtime;
 	$info->{INFO}->{PROJTYPE} = $list->{$idx}->{PROJTYPE} if ($list->{$idx}->{PROJTYPE});
+	$info->{INFO}->{PROJCONFIG} = $list->{$idx}->{PROJCONFIG} if ($list->{$idx}->{PROJCONFIG});
 
 	## sample metadata
 	$info->{INFO}->{SHOWMETA}   = $list->{$idx}->{SHOWMETA} if ($list->{$idx}->{SHOWMETA});
 	$info->{INFO}->{ISOWNER} = $list->{$idx}->{ISOWNER} if($list->{$idx}->{ISOWNER});
 	$info->{INFO}->{HASMETA}   = $list->{$idx}->{HASMETA} if ($list->{$idx}->{HASMETA});
+	$info->{INFO}->{SHAREBSVE}   = $list->{$idx}->{SHAREBSVE} if ($list->{$idx}->{SHAREBSVE});
 	$info->{INFO}->{METABSVE}   = $list->{$idx}->{METABSVE} if ($list->{$idx}->{METABSVE});
 	## END sample metadata
 }
@@ -304,6 +298,7 @@ sub parseProcessLog {
 	my $numcpu;
 	my ($step,$ord,$do,$status);
 	my %map;
+	my $rnaPipeline=0;
 
 	open LOG, $log or die "Can't open $log.";
 	foreach(<LOG>){
@@ -323,9 +318,13 @@ sub parseProcessLog {
 			undef %{$prog};
 			undef %map;
 		}
+		elsif(/runPipeline_rRNA/){
+			$rnaPipeline=1;
+		}
 		elsif( /^cpu=(\d+)$/ ){
 			$numcpu=$1;
 		}
+	
 		elsif( /^projdesc=(.*)/ ){
 			$proj_desc=$1;
 		}
@@ -401,7 +400,7 @@ sub parseProcessLog {
 		}
 	}
 
-	return ($proj_status,$prog,$proj_start,$numcpu,$proj_desc,$proj_name,$proj_id);
+	return ($proj_status,$prog,$proj_start,$numcpu,$proj_desc,$proj_name,$proj_id,$rnaPipeline);
 }
 
 sub scanNewProjToList {
@@ -409,16 +408,15 @@ sub scanNewProjToList {
 	
 	opendir(BIN, $out_dir) or die "Can't open $out_dir: $!";
 	my @dirfiles = readdir(BIN);
-
 	foreach my $file (@dirfiles)  {
-		next if ($file eq '.' || $file eq '..' || ! -d "$out_dir/$file/");
+		next if ($file eq '.' || $file eq '..' || ! -d "$out_dir/$file");
 		my $config = "$out_dir/$file/config.txt";
 		my $processLog = "$out_dir/$file/process_current.log";
 		$cnt++;
 		if (-r "$config"){
 			$list->{$cnt}->{NAME} = $file ;
-			$list->{$cnt}->{TIME} = (stat("$out_dir/$file"))[10]; 
-			$list->{$cnt}->{STATUS} eq "running" if $name2pid->{$file};
+			$list->{$cnt}->{TIME} =  strftime "%F %X",localtime((stat("$config"))[9]); 
+			$list->{$cnt}->{STATUS} = "unknown";
 			if ( -r "$processLog"){
 				open (my $fh, $processLog);
 				while(<$fh>){
@@ -426,32 +424,48 @@ sub scanNewProjToList {
 						$list->{$cnt}->{STATUS} = "unstarted";
 					}
 					if (/All Done/){
-                                                $list->{$cnt}->{STATUS} = "finished";
-                                        }
-                                        if (/failed/i){
-                                                $list->{$cnt}->{STATUS} = "failed";
-                                        }
+						$list->{$cnt}->{STATUS} = "finished";
+					}
+					if (/failed/i){
+						$list->{$cnt}->{STATUS} = "failed";
+					}
 				}
 				close $fh;
 			}
+			$list->{$cnt}->{STATUS} = "running" if $name2pid->{$file};
 			my $projname = $file;
+			# if the system change from User management on to off. will need parse the project name from config file
+			#  using grep is slow than open file and regrex
+			#if ( length($projname)==32 ){
+			#	open (my $fh, $config);
+			#	while(<$fh>){if (/projname=(.*)/){$projname=$1;chomp $projname;last;};}
+			#	close $fh;
+			#}
 			chomp $projname;
 			$list->{$cnt}->{PROJNAME} = $projname;
-		}
 
-		## sample metadata
-		if($sys->{edge_sample_metadata}) {
-			$list->{$cnt}->{SHOWMETA} = 1;
-			$list->{$cnt}->{ISOWNER} = 1;
+			## sample metadata
+			if($sys->{edge_sample_metadata}) {
+				$list->{$cnt}->{SHOWMETA} = 1;
+				$list->{$cnt}->{ISOWNER} = 1;
+			}
+			my $metaFile = "$out_dir/$file/metadata_sample.txt";
+			my $runFile = "$out_dir/$file/metadata_run.txt";
+			my $pathogensFile = "$out_dir/$file/pathogens.txt";
+			if(-r $metaFile) {
+				$list->{$cnt}->{HASMETA} = 1;
+			} 
+
+			if($sys->{edge_sample_metadata_share2bsve} && hasPathogens($pathogensFile)) {
+				$list->{$cnt}->{SHAREBSVE} = 1;
+			}
+			if(-r $runFile) {
+				my $bsveId = `grep -a "bsve_id=" $runFile | awk -F'=' '{print \$2}'`;
+				chomp $bsveId;
+				$list->{$cnt}->{METABSVE} = $bsveId;
+			}
+			## END sample metadata
 		}
-		my $metaFile = "$out_dir/$file/sample_metadata.txt";
-		if(-r $metaFile) {
-			$list->{$cnt}->{HASMETA} = 1;
-			my $bsveId = `grep -a "bsve_id=" $metaFile | awk -F'=' '{print \$2}'`;
-			chomp $bsveId;
-			$list->{$cnt}->{METABSVE} = $bsveId;
-		} 
-		## END sample metadata
 	}
 	closedir(BIN);
 }
@@ -552,6 +566,7 @@ sub getUserProjFromDB{
 	my $service;
 	if ($username && $password){ 
 		$service = "WS/user/getProjects";
+		$data{project_display} = "yes";
 	}else{
 		$service = "WS/user/publishedProjects";
 	}
@@ -570,7 +585,7 @@ sub getUserProjFromDB{
 
 	my $response = $browser->request($req);
 	my $result_json = $response->decoded_content;
-	#print $result_json,"\n";
+	#print $result_json,"\n" if ($ARGV[1]);
 	if ($result_json =~ /\"error_msg\":"(.*)"/)
 	{
 		$info->{INFO}->{ERROR}=$1;
@@ -584,7 +599,9 @@ sub getUserProjFromDB{
 		my $project_name = $hash_ref->{name};
 		my $status = $hash_ref->{status};
 		my $created = $hash_ref->{created};
-		next if (! -r "$out_dir/$id/process.log" && ! -r "$out_dir/$projCode/process.log" && !$cluster);
+		my $proj_dir = (-d "$out_dir/$projCode")?"$out_dir/$projCode":"$out_dir/$id";
+		next if (! -r "$proj_dir/process.log" && !$cluster);
+		next if ($cluster && ! -r "$proj_dir/clusterSubmit.sh");
 		next if ( $status =~ /delete/i);
 		$list->{$id}->{NAME} = $id;
 		$list->{$id}->{PROJNAME} = $project_name;
@@ -604,18 +621,42 @@ sub getUserProjFromDB{
 		if($username eq  $hash_ref->{owner_email}) {
 			$list->{$id}->{ISOWNER} = 1;
 		}
-		my $metaFile = "$out_dir/$id/sample_metadata.txt";
-		if(!-e $metaFile) {
-			$metaFile = "$out_dir/$projCode/sample_metadata.txt";
-		}
+		my $metaFile = "$proj_dir/metadata_sample.txt";
+		my $runFile = "$proj_dir/metadata_run.txt";
+		my $pathogensFile = "$proj_dir/pathogens.txt";
 		if(-r $metaFile) {
 			$list->{$id}->{HASMETA} = 1;
-			my $bsveId = `grep -a "bsve_id=" $metaFile | awk -F'=' '{print \$2}'`;
+		}
+		if($sys->{edge_sample_metadata_share2bsve} && hasPathogens($pathogensFile)) {
+			$list->{$id}->{SHAREBSVE} = 1;
+		}
+		if(-r $runFile) {
+			my $bsveId = `grep -a "bsve_id=" $runFile | awk -F'=' '{print \$2}'`;
 			chomp $bsveId;
 			$list->{$id}->{METABSVE} = $bsveId;
 		} 
 		## END sample metadata
+		
 	}
+}
+
+sub hasPathogens {
+	my $file = shift;
+	my $top = 0;
+
+	if(-e $file) {
+	    	open (my $fh , $file) or die "No config file $!\n";
+	   	 while (<$fh>) {
+	       	 	chomp;
+			if(/pathogen\thost\(s\)\tdisease/) {
+				next;
+			}
+			$top ++;
+	    	}
+	    	close $fh;
+	}
+
+ 	return $top;
 }
 
 sub getProjInfoFromDB{
@@ -640,7 +681,7 @@ sub getProjInfoFromDB{
 
     my $response = $browser->request($req);
     my $result_json = $response->decoded_content;
-	#print $result_json,"\n" if (@ARGV);
+	#print $result_json if (@ARGV);
 	my $hash_ref = from_json($result_json);
 
 	my $id = $hash_ref->{id};
@@ -649,8 +690,9 @@ sub getProjInfoFromDB{
 	my $status = $hash_ref->{status};
 	my $created = $hash_ref->{created};
 	my $projtype = ($hash_ref->{isPublished})?"publish":"false";
-	#next if (! -r "$out_dir/$id/process.log");
-	#next if ( $status =~ /delete/i);
+	my $proj_dir = (-d "$out_dir/$projCode")?"$out_dir/$projCode":"$out_dir/$id";
+        return if (! -r "$proj_dir/process.log");
+        return if ( $status =~ /delete/i);
 	$list->{$id}->{NAME} = $id;
 	$list->{$id}->{PROJNAME} = $project_name;
 	$list->{$id}->{PROJCODE} = $projCode;
@@ -673,6 +715,23 @@ sub getProjID {
     }
   }
   return $projID;
+}
+
+sub loadInitSetup{
+	# module on/off
+	$info->{INFO}->{UMSYSTEM}= ( $sys->{user_management} )? "true":"false";
+	$info->{INFO}->{UPLOAD}  = ( $sys->{user_upload} )?"true":"false";
+	$info->{INFO}->{ARCHIVE} = ( -w $sys->{edgeui_archive} ) ? "true":"false";
+	$info->{INFO}->{MQC}     = ( $sys->{m_qc} )?"true":"false";
+	$info->{INFO}->{MAA}     = ( $sys->{m_assembly_annotation} )?"true":"false";
+	$info->{INFO}->{MRBA}    = ( $sys->{m_reference_based_analysis} )?"true":"false";
+	$info->{INFO}->{MTC}     = ( $sys->{m_taxonomy_classfication} )?"true":"false";
+	$info->{INFO}->{MPA}     = ( $sys->{m_phylogenetic_analysis} )?"true":"false";
+	$info->{INFO}->{MSGP}    = ( $sys->{m_specialty_genes_profiling} )?"true":"false";
+	$info->{INFO}->{MPPA}    = ( $sys->{m_pcr_primer_analysis} )?"true":"false";
+	$info->{INFO}->{MQIIME}  = ( $sys->{m_qiime} )?"true":"false";
+	#parameters
+	$info->{INFO}->{UPLOADEXPIRE}  = ( $sys->{edgeui_proj_store_days} )?$sys->{edgeui_proj_store_days}:"1095";
 }
 
 sub returnStatus {

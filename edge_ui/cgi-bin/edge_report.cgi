@@ -63,7 +63,7 @@ if( $sys->{user_management} && $pname !~ /\D/ && $sid ){
 		$html;
 		exit 0;
 	}
-	$projDir = $relpath ."/". $proj_code;
+	$projDir = (-d "$edgeui_output/$pname")? "$edgeui_output/$pname": $relpath ."/". $proj_code; 
 }
 if( !$sys->{user_management} || !$username ){
 	if ( -e "$edgeui_output/$pname/config.txt"){
@@ -108,8 +108,8 @@ sub generateReport {
 		last if /<!-- \/content -->/;
 		push @htmls, $_ if $pr;
 		$pr=1 if /id='edge-content-report'/;
-
-		if( $_ =~ /Project Status: (complete|archived)/i && !$complete_report_exist ){
+		
+		if( $_ =~ /edge-output-projstatus.*(complete|archived)/i && !$complete_report_exist ){
 			`touch $projDir/HTML_Report/.complete_report_web`;
 		}
 	}

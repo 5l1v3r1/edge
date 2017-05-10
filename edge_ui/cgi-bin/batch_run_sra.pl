@@ -43,6 +43,7 @@ while(<$fh>){
 	my $study = $array[3];
 	my $experiment = $array[4];
 	my $instrument = $array[6];
+        next unless($sra_id =~ /[A-Z]{3}\d+/);
 	my $projname = "bsve_$sra_id";
 	my $projdesc = "$sra_id $study";
 	$projdesc =~ s/(['"])/\\$1/g;
@@ -125,11 +126,13 @@ while(<$fh>){
 	}
         close TMP;
 
+        my $cpu = $ARGV[1];
+        $cpu = 12 unless $cpu;
+
 	chdir $RealBin;
-	$cmd = "$RealBin/edge_submit.cgi $projname $sra_id \"$projdesc\"";
-        $cmd .= " \"$sampleType\" \"$source\" \"$collectionDate\" \"$city\" \"$state\" \"$country\" \"$lat\" \"$lng\" \"$seqPlatform\" \"$sequencer\" \"$seqDate\" \"$host\" \"$hostCondition\" \"$gender\"";
-	$cmd .= " SRA \"$sra_id\" \"$study\" \"$sampleName\" \"$experiment\" \"$location\" \"$instrument\" \"$center\" \"$study_id\"";
-	print $cmd,"\n";
+	$cmd = "$RealBin/edge_submit.cgi \"$projname\" \"$sra_id\" \"$projdesc\"";
+	$cmd .= " \"$study_id\" \"$study\" \"$sampleName\" \"$sampleType\" \"$gender\" \"$host\" \"$hostCondition\" \"$source\" \"$collectionDate\" \"$location\" \"$city\" \"$state\" \"$country\" \"$lat\" \"$lng\" \"$experiment\" \"$center\" \"$instrument\" \"$seqDate\" \"$cpu\" \"lanl_only=true\"";
+	#print $cmd,"\n";
 	system($cmd);
 }
 close $fh;

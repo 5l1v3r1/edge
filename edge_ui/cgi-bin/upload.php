@@ -57,7 +57,13 @@ $edge_config=read_config(__DIR__."/../sys.properties");
 // Settings
 //$targetDir = ini_get("upload_tmp_dir") . DIRECTORY_SEPARATOR . "plupload";
 //$targetDir = 'uploads';
-$targetDir = $edge_config["edgeui_input"].$_REQUEST["targetDir"];
+$domain=explode(".",$_SERVER['HTTP_HOST']);
+$targetDir=$edge_config["edgeui_input"]."/$domain[0]";
+if (file_exists("$targetDir")) {
+	$targetDir = $edge_config["edgeui_input"]."/$domain[0]".$_REQUEST["targetDir"];
+}else{
+	$targetDir = $edge_config["edgeui_input"].$_REQUEST["targetDir"];
+}
 $cleanupTargetDir = true; // Remove old files
 $maxDay = ($edge_config["edgeui_proj_store_days"]>0)? $edge_config["edgeui_proj_store_days"] : 1095;
 $maxFileAge = $maxDay * 24 * 60 * 60; // Temp file age in maxday days 
@@ -94,7 +100,7 @@ if ($cleanupTargetDir) {
 		$tmpfilePath = $targetDir . DIRECTORY_SEPARATOR . $file;
 
 		// If temp file is current file proceed to the next
-		if ($tmpfilePath == "{$filePath}.part") {
+		if ($tmpfilePath == "{$filePath}.part" || $file == '.' || $file == '..') {
 			continue;
 		}
 
@@ -139,7 +145,7 @@ if (!$chunks || $chunk == $chunks - 1) {
 	// Strip the temp .part suffix off 
 	$fileType = mime_content_type("{$filePath}.part");
 	if(preg_match("/text/i", $fileType)){
-		system("sed 's/\r//' \"{$filePath}.part\" >$filePath");
+		system("perl -pe 's/\r\n|\n|\r/\n/g' \"{$filePath}.part\" >$filePath");
 		unlink("{$filePath}.part");
 	}else{
 		rename("{$filePath}.part", $filePath);

@@ -11,6 +11,7 @@ use Cwd 'abs_path';
 use lib "$RealBin/../../lib";
 use HTML::Template;
 use JSON;
+use LWP::Simple;
 use LWP::UserAgent;
 use HTTP::Request::Common;
 use CGI::Session ( '-ip_match' );
@@ -19,11 +20,13 @@ use CGI qw(:standard);
 use POSIX qw(strftime);
 use Digest::MD5 qw(md5_hex);
 use Data::Dumper;
+use Storable 'dclone';
 require "edge_user_session.cgi";
 require "../cluster/clusterWrapper.pl";
 
 my $cgi = CGI->new;
 my %opt = $cgi->Vars();
+my $opt_orig = dclone(\%opt);
 my $EDGE_HOME = $ENV{EDGE_HOME};
 $EDGE_HOME ||= "$RealBin/../..";
 
@@ -52,6 +55,8 @@ my $cluster_job_max_cpu= $sys->{cluster_job_max_cpu};
 my $cluster_job_notify = $sys->{cluster_job_notify};
 my $cluster_job_prefix = $sys->{cluster_job_prefix};
 my $cluster_tmpl = "$RealBin/../cluster/clusterSubmit.tmpl";
+&LoadSGEenv($sys) if ($cluster);
+
 $sys->{edgeui_input} = "$sys->{edgeui_input}"."/$webhostname" if ( -d "$sys->{edgeui_input}/$webhostname");
 $sys->{edgeui_output} = "$sys->{edgeui_output}"."/$webhostname" if ( -d "$sys->{edgeui_output}/$webhostname");
 
@@ -86,6 +91,8 @@ my $edge_qiime_input_dir = $opt{"edge-qiime-reads-dir-input"};
 my @edge_qiime_barcode_input;
 my @edge_phylo_ref_input;
 my @edge_ref_input;
+my $edge_ref_genome_file_max = $sys->{edge_ref_genome_file_max} || 20;
+my $edge_phylo_genome_file_max = $sys->{edge_phylo_genome_file_max} || 20;
 my $projlist;
 my @pnames;
 
@@ -98,42 +105,30 @@ $opt{"edge-sg-length-options"} = $sb_min_len/100;
 #####  Chienchi add for batch sra submit #######
 my $batch_sra_run=0;
 if ($ARGV[0] && $ARGV[1] && $ARGV[2]){
-	$batch_sra_run=1;
-	$sys->{user_management}=0;
-	$opt{'edge-proj-name'} = $pname;
-	$opt{'edge-sra-sw'} =1;
-	$opt{'edge-sra-acc'} = $ARGV[1];
-	$opt{'edge-proj-desc'} = $ARGV[2];
-	$opt{'edge-qc-sw'} =1;
-	$opt{'edge-qc-q'} = 5; 
-	$opt{'edge-qc-minl'} = 50; 
-	$opt{'edge-qc-avgq'} = 0; 
-	$opt{'edge-qc-n'} = 0; 
-	$opt{'edge-qc-lc'} = 0.85; 
-	$opt{'edge-qc-5end'} = 0; 
-	$opt{'edge-qc-3end'} = 0; 
+        $batch_sra_run=1;
+        $sys->{user_management}=0;
+        $opt{'edge-proj-name'} = $pname;
+        $opt{'edge-sra-sw'} =1;
+        $opt{'edge-sra-acc'} = $ARGV[1];
+        $opt{'edge-proj-desc'} = $ARGV[2];
+        $opt{'edge-qc-sw'} =1;
+        $opt{'edge-qc-q'} = 5;
+        $opt{'edge-qc-minl'} = 30;
+        $opt{'edge-qc-avgq'} = 0;
+        $opt{'edge-qc-n'} = 0;
+        $opt{'edge-qc-lc'} = 0.85;
+        $opt{'edge-qc-5end'} = 0;
+        $opt{'edge-qc-3end'} = 0;
 
-	$opt{'edge-assembly-sw'}=0;
-	$opt{'edge-taxa-allreads'} =1;
-	$opt{'edge-taxa-enabled-tools'}="gottcha-genDB-b,gottcha-speDB-b,gottcha-strDB-b,gottcha-genDB-v,gottcha-speDB-v,gottcha-strDB-v,bwa";
+        $opt{'edge-assembly-sw'}=0;
+        $opt{'edge-taxa-allreads'} =1;
+        $opt{'edge-taxa-enabled-tools'}="gottcha2-speDB-v,gottcha2-speDB-b,bwa,pangia";
+        if(-e $ARGV[3]) {
+                $opt{"metadata-other-file"} = $ARGV[3];
+        } else {
+                $opt{"metadata-other"} = $ARGV[3];
+        }
 
-        ###sample metadata
-        $opt{"edge-metadata-sw"} = 1; 
-        $opt{'edge-sample-type'} = $ARGV[3];
-	$opt{'edge-sample-source-host'} = $ARGV[4];
-        $opt{'edge-sample-source-nonhost'} = $ARGV[4];
-        $opt{'edge-pg-collection-date'} = $ARGV[5];
-	$opt{'locality'} = $ARGV[6] if $ARGV[6] ne "NA";
-	$opt{'administrative_area_level_1'} = $ARGV[7] if $ARGV[7] ne "NA";
-	$opt{'country'} = $ARGV[8];
-	$opt{'lat'} = $ARGV[9];
-	$opt{'lng'} = $ARGV[10];
-	$opt{'edge-pg-seq-platform'} = $ARGV[11];
-	$opt{'edge-pg-sequencer-ill'} = $ARGV[12];
-	$opt{'edge-pg-sequencer-ion'} = $ARGV[12];
-	$opt{'edge-pg-sequencer-nan'} = $ARGV[12];
-	$opt{'edge-pg-sequencer-pac'} = $ARGV[12];
-        #END
 }
 ###################
 
@@ -151,7 +146,7 @@ if( $sys->{user_management} ){
 }
 
 # Qiime dir submit
-if ($edge_qiime_input_dir){
+if ($edge_qiime_input_dir && $pipeline eq "qiime"){
 	my ($pe1_file_r,$pe2_file_r,$se_file_r) = &parse_qiime_mapping_files($edge_qiime_input_dir,\@edge_qiime_mapping_files);
 	@edge_input_pe1 = @{$pe1_file_r};
 	@edge_input_pe2 = @{$pe2_file_r};
@@ -354,6 +349,7 @@ sub createConfig {
 		#backup config first
 		`mv $config_out $config_out.bak` if( -e $config_out );
 		`mv $json_out $json_out.bak` if( -e $json_out );
+		saveListToJason( $opt_orig, $json_out );
 
 		if( defined $opt{"edge-input-config"} && -e $opt{"edge-input-config"} ){
 			open CFG, $opt{"edge-input-config"};
@@ -393,10 +389,10 @@ sub createConfig {
 
 			if ($opt{"edge-phylo-sw"})
 			{
-				my @snpPhylo_refs;
-				map { push @snpPhylo_refs, $_} split /[\x0]/, $opt{"edge-phylo-ref-select"} if defined $opt{"edge-phylo-ref-select"};
-				$opt{"edge-phylo-ref-list"} = join ",",@snpPhylo_refs if @snpPhylo_refs;
-				$opt{"edge-phylo-ref-list-file"} = join ",",@edge_phylo_ref_input if @edge_phylo_ref_input;
+				#my @snpPhylo_refs;
+				#map { push @snpPhylo_refs, $_} split /[\x0]/, $opt{"edge-phylo-ref-select"} if defined $opt{"edge-phylo-ref-select"};
+				#$opt{"edge-phylo-ref-list"} = join ",",@snpPhylo_refs if @snpPhylo_refs;
+				#$opt{"edge-phylo-ref-list-file"} = join ",",@edge_phylo_ref_input if @edge_phylo_ref_input;
 			}
 	   
 			$opt{"edge-taxa-enabled-tools"} =~ s/[\x0]/,/g if $opt{"edge-taxa-sw"};
@@ -429,7 +425,6 @@ sub createConfig {
 				&addMessage("GENERATE_CONFIG","success","Config file generated.");
 			}
 			
-			saveListToJason( \%opt, $json_out );
 		}
 	}
 }
@@ -460,14 +455,16 @@ sub runPipeline {
 		}else{
 			for (0..$#edge_input_pe1)
 			{
-				$paired_files .= "$edge_input_pe1[$_] $edge_input_pe2[$_] ";
+				$paired_files .= "$edge_input_pe1[$_] $edge_input_pe2[$_] \\\n";
 			}
 		
 			$single_files = join " ", @edge_input_se;
 		}
 		$process_parameters .= " --debug " if ($debug);
-		$process_parameters .= " -p $paired_files " if ($paired_files);
-		$process_parameters .= " -u $single_files " if ($single_files);
+		unless ($pipeline eq 'qiime' &&  -d $edge_qiime_input_dir){
+ 			$process_parameters .= " -p $paired_files " if ($paired_files);
+ 			$process_parameters .= " -u $single_files " if ($single_files);
+ 		}
 
 		my $cmd = "$EDGE_HOME/runPipeline $process_parameters > $proj_dir/process_current.log &";
 
@@ -532,14 +529,16 @@ sub runPipeline_cluster {
 		}else{
 			for (0..$#edge_input_pe1)
 			{
-				$paired_files .= "$edge_input_pe1[$_] $edge_input_pe2[$_] ";
+				$paired_files .= "$edge_input_pe1[$_] $edge_input_pe2[$_] \\\n";
 			}
 		
 			$single_files = join " ", @edge_input_se;
 		}
 		$process_parameters .= " --debug " if ($debug);
-		$process_parameters .= " -p $paired_files " if ($paired_files);
-		$process_parameters .= " -u $single_files " if ($single_files);
+		unless ($pipeline eq 'qiime' &&  -d $edge_qiime_input_dir){
+ 			$process_parameters .= " -p $paired_files " if ($paired_files);
+ 			$process_parameters .= " -u $single_files " if ($single_files);
+ 		}
 
 		my $cmd = "$EDGE_HOME/runPipeline $process_parameters > $proj_dir/process_current.log";
 
@@ -773,8 +772,8 @@ sub checkParams {
 			next if $param eq "password";
 			next if $param =~ /aligner-options/;
 			##sample metadata
-			next if $param =~ /edge-pg/;
-			next if $param =~ /edge-sample/;
+			next if $param =~ /metadata/;
+			next if $param =~ /edgesite/;
 			next if $param eq "locality";
 			next if $param eq "administrative_area_level_1";
 			next if $param eq "country";
@@ -830,6 +829,8 @@ sub checkParams {
 		}
 		if ( $opt{'edge-sra-sw'}){
 			&addMessage("PARAMS","edge-sra-acc","Input error. Please input SRA accession") if ( ! $opt{'edge-sra-acc'});
+			my $return=&getSRAmetaData($opt{'edge-sra-acc'});
+			&addMessage("PARAMS","edge-sra-acc","Input error. Cannot find $opt{'edge-sra-acc'}") if ($return);
 		}else{
 			if (!@edge_input_pe1 && !@edge_input_pe2 && !@edge_input_se){
 				&addMessage("PARAMS","edge-input-pe1-1","Input error.");
@@ -855,6 +856,51 @@ sub checkParams {
 			}
 		}
 	}
+
+	if ($pipeline eq "qiime"){
+		$opt{"edge-qiime-sw"} =1;
+		$opt{"edge-qc-sw"} =0;
+		$opt{"edge-hostrm-sw"} =0;
+		$opt{"edge-assembly-sw"} = 0;
+		$opt{"edge-ref-sw"} = 0;
+		$opt{"edge-taxa-sw"} = 0;
+		$opt{"edge-contig-taxa-sw"} = 0;
+		$opt{"edge-anno-sw"} = 0 ;
+		$opt{"edge-phylo-sw"} = 0 ;
+		$opt{"edge-primer-valid-sw"} = 0 ;
+		$opt{"edge-primer-adj-sw"} = 0 ;
+		$opt{"edge-anno-sw"} = 0 ;
+		$opt{"edge-jbroswe-sw"} = 0 ;
+		@edge_qiime_barcode_input = split /[\x0]/, $opt{"edge-qiime-barcode-fq-file-input"} if defined $opt{"edge-qiime-barcode-fq-file-input"};
+		foreach my $i (0..$#edge_qiime_barcode_input){
+			my $id = "edge-qiime-barcode-fq-file-input". ($i + 1);
+			$edge_qiime_barcode_input[$i] =~ s/ //g;
+			$edge_qiime_barcode_input[$i] = "$input_dir/$edge_qiime_barcode_input[$i]" if ($edge_qiime_barcode_input[$i] =~ /^\w/);
+			&addMessage("PARAMS","$id","Error: duplicated input.") if ($files{$edge_qiime_barcode_input[$i]});
+			$files{$edge_qiime_barcode_input[$i]}=1;
+			if ($edge_qiime_barcode_input[$i]  && -e $edge_qiime_barcode_input[$i]){
+				&addMessage("PARAMS","$id","Input error. FASTQ format required") if ( ! is_fastq($edge_qiime_barcode_input[$i]));
+			}else{
+				&addMessage("PARAMS","$id","Input error. Please check the file path.");
+				
+			}
+		}
+		&addMessage("PARAMS", "edge-qiime-barcode-length","Invalid input. Natural number required.") unless $opt{"edge-qiime-barcode-length"}=~ /^\d+$/;
+		&addMessage("PARAMS", "edge-qiime-phred-quality-threshold", "Invalid input. Input should in range 0-41.") unless ( $opt{"edge-qiime-phred-quality-threshold"} >= 0 && $opt{"edge-qiime-phred-quality-threshold"} <=41 );
+		&addMessage("PARAMS", "edge-qiime-max-n","Invalid input. Natural number required.") unless $opt{"edge-qiime-max-n"}=~ /^\d+$/;
+		&addMessage("PARAMS", "edge-qiime-min-per-read-length-fraction","Invalid input. Floating number between 0 and 1 required.") unless ( $opt{"edge-qiime-min-per-read-length-fraction"} >=0 && $opt{"edge-qiime-min-per-read-length-fraction"} <=1 );
+		&addMessage("PARAMS", "edge-qiime-minimum-otu-size","Invalid input. Natural number required.") unless $opt{"edge-qiime-minimum-otu-size"}=~ /^\d+$/;
+		&addMessage("PARAMS", "edge-qiime-similarity","Invalid input. Floating number between 0 and 1 required.") unless ( $opt{"edge-qiime-similarity"} >=0 && $opt{"edge-qiime-similarity"} <=1 );
+		&addMessage("PARAMS", "edge-qiime-sampling-depth","Invalid input. Natural number required.") unless $opt{"edge-qiime-sampling-depth"}=~ /^\d+$/;
+
+		
+	} else {##sample metadata
+		if ( $sys->{edge_sample_metadata} ){
+			#&addMessage("PARAMS", "country", "Metadata sample location country or lat&lng required.") unless ( $opt{'country'} || ($opt{'lat'} && $opt{'lng'})); 
+			#&addMessage("PARAMS", "edge-pg-collection-date", "Metadata sample collection date is required.") unless ( $opt{'edge-pg-collection-date'} ); 
+			#&addMessage("PARAMS", "edge-pg-seq-date", "Metadata sample sequencing date is required.") unless ( $opt{'edge-pg-seq-date'} ); 
+		} 
+	}
 	
 	#tool parameters
 	if ( $opt{"edge-ref-sw"}){
@@ -863,7 +909,7 @@ sub checkParams {
 			@refsl = split /[\x0]/, $opt{"edge-ref-file-fromlist"};
 			map { 	my @tmp= `ls -d $EDGE_HOME/database/NCBI_genomes/$_*`; 
 				chomp @tmp;  
-				my @gfiles = `ls $tmp[0]/*gbk`; 
+				my @gfiles = `ls $tmp[0]/*gbk $tmp[0]/*gbff 2>/dev/null`; 
 				chomp @gfiles; 
 				push @refs,@gfiles;
 			    } @refsl;
@@ -873,7 +919,7 @@ sub checkParams {
 			@edge_ref_input = split /[\x0]/, $opt{"edge-ref-file"} if defined $opt{"edge-ref-file"};
 			for my $i (0..$#edge_ref_input){
 				$edge_ref_input[$i] = $input_dir."/".$edge_ref_input[$i] if ($edge_ref_input[$i]=~ /^\w/);
-				my $id = 'edge-ref-file'. ($i + 1);
+				my $id = 'edge-ref-file-'. ($i + 1);
 				&addMessage("PARAMS",$id,"Invalid input. Fasta or Genbank format required") if ( -e $edge_ref_input[$i] && ! is_fasta($edge_ref_input[$i]) && ! is_genbank($edge_ref_input[$i]));
 			}
 			$num_selected += scalar(@edge_ref_input);
@@ -883,13 +929,61 @@ sub checkParams {
 		&addMessage("PARAMS","edge-ref-file-1","Reference not found. Please check the input referecne.") if( ! $opt{"edge-ref-file"} && !defined $opt{"edge-ref-file-fromlist"});
 		&addMessage("PARAMS","edge-ref-file-fromlist","Reference not found. Please check the input referecne.") if( ! $opt{"edge-ref-file"} && !defined $opt{"edge-ref-file-fromlist"});
 		
-		if (defined $sys->{edge_ref_genome_file_max} && $num_selected > $sys->{edge_ref_genome_file_max}){
-			&addMessage("PARAMS","edge-ref-file-fromlist","The maximum reference genome is $sys->{edge_ref_genome_file_max}");
+		if ($edge_ref_genome_file_max && $num_selected > $edge_ref_genome_file_max){
+			&addMessage("PARAMS","edge-ref-file-fromlist","The maximum reference genome is $edge_ref_genome_file_max");
 		}
 		
 	}
-	if ( $opt{"edge-taxa-sw"} && scalar split(/[\x0]/,$opt{"edge-taxa-enabled-tools"}) < 1 ){
-		&addMessage("PARAMS","edge-taxa-tools","You need to choose at least one tool.");
+	if ( $opt{"edge-taxa-sw"} ){
+ 		&addMessage("PARAMS","edge-taxa-tools","You need to choose at least one tool.") if (scalar split(/[\x0]/,$opt{"edge-taxa-enabled-tools"}) < 1 );
+ 		if ($opt{"custom-bwa"}){
+ 			$opt{"custom-bwa"} = $input_dir."/".$opt{"custom-bwa"} if ($opt{"custom-bwa"} =~ /^\w/);
+ 			&addMessage("PARAMS","custom-bwa","DB file not found") if (! -e $opt{"custom-bwa"});
+ 		}
+ 		if ($opt{"custom-gottcha-spedb-v"}){
+ 			$opt{"custom-gottcha-spedb-v"} = $input_dir."/".$opt{"custom-gottcha-spedb-v"} if ($opt{"custom-gottcha-spedb-v"} =~ /^\w/);
+ 			&addMessage("PARAMS","custom-gottcha-spedb-v","DB file not found") if (! -e $opt{"custom-gottcha-spedb-v"});
+ 		}
+ 		if ($opt{"custom-gottcha-spedb-b"}){
+ 			$opt{"custom-gottcha-spedb-b"} = $input_dir."/".$opt{"custom-gottcha-spedb-b"} if ($opt{"custom-gottcha-spedb-b"} =~ /^\w/);
+ 			&addMessage("PARAMS","custom-gottcha-spedb-b","DB file not found") if (! -e $opt{"custom-gottcha-spedb-b"});
+ 		}
+ 		if ($opt{"custom-gottcha-strdb-v"}){
+ 			$opt{"custom-gottcha-strdb-v"} = $input_dir."/".$opt{"custom-gottcha-strdb-v"} if ($opt{"custom-gottcha-strdb-v"} =~ /^\w/);
+ 			&addMessage("PARAMS","custom-gottcha-strdb-v","DB file not found") if (! -e $opt{"custom-gottcha-strdb-v"});
+ 		}
+ 		if ($opt{"custom-gottcha-strdb-b"}){
+ 			$opt{"custom-gottcha-strdb-b"} = $input_dir."/".$opt{"custom-gottcha-strdb-b"} if ($opt{"custom-gottcha-strdb-b"} =~ /^\w/);
+ 			&addMessage("PARAMS","custom-gottcha-strdb-b","DB file not found") if (! -e $opt{"custom-gottcha-strdb-b"});
+ 		}
+		if ($opt{"custom-gottcha-gendb-v"}){
+			$opt{"custom-gottcha-gendb-v"} = $input_dir."/".$opt{"custom-gottcha-gendb-v"} if ($opt{"custom-gottcha-gendb-v"} =~ /^\w/);
+			&addMessage("PARAMS","custom-gottcha-gendb-v","DB file not found") if (! -e $opt{"custom-gottcha-gendb-v"});
+		}
+		if ($opt{"custom-gottcha-gendb-b"}){
+			$opt{"custom-gottcha-gendb-b"} = $input_dir."/".$opt{"custom-gottcha-gendb-b"} if ($opt{"custom-gottcha-gendb-b"} =~ /^\w/);
+			&addMessage("PARAMS","custom-gottcha-gendb-b","DB file not found") if (! -e $opt{"custom-gottcha-gendb-b"});
+		}
+		if ($opt{"custom-metaphlan"}){
+			$opt{"custom-metaphlan"} = $input_dir."/".$opt{"custom-metaphlan"} if ($opt{"custom-metaphlan"} =~ /^\w/);
+			&addMessage("PARAMS","custom-metaphlan","DB file not found") if (! -e $opt{"custom-metaphlan"});
+		}
+		if ($opt{"custom-kraken"}){
+			$opt{"custom-kraken"} = $input_dir."/".$opt{"custom-kraken"} if ($opt{"custom-kraken"} =~ /^\w/);
+			&addMessage("PARAMS","custom-kraken","DB file not found") if (! -e $opt{"custom-kraken"});
+		}
+		if ($opt{"custom-gottcha2-spedb-b"}){
+			$opt{"custom-gottcha2-spedb-b"} = $input_dir."/".$opt{"custom-gottcha2-spedb-b"} if ($opt{"custom-gottcha2-spedb-b"} =~ /^\w/);
+			&addMessage("PARAMS","custom-gottcha2-spedb-b","DB file not found") if (! -e $opt{"custom-gottcha2-spedb-b"});
+		}
+		if ($opt{"custom-gottcha2-gendb-v"}){
+			$opt{"custom-gottcha2-gendb-v"} = $input_dir."/".$opt{"custom-gottcha2-gendb-v"} if ($opt{"custom-gottcha2-gendb-v"} =~ /^\w/);
+			&addMessage("PARAMS","custom-gottcha2-gendb-v","DB file not found") if (! -e $opt{"custom-gottcha2-gendb-v"});
+		}
+		if ($opt{"custom-gottcha2-spedb-v"}){
+			$opt{"custom-gottcha2-spebd-v"} = $input_dir."/".$opt{"custom-gottcha2-spedb-v"} if ($opt{"custom-gottcha2-spedb-v"} =~ /^\w/);
+			&addMessage("PARAMS","custom-gottcha2-spedb-v","DB file not found") if (! -e $opt{"custom-gottcha2-spedb-v"});
+		}
 	}
 	&addMessage("PARAMS","edge-primer-vaild-sw","Input primer fasta file. You need to turn on the Primer Validation") if ($opt{"edge-primer-valid-file"} && !$opt{"edge-primer-valid-sw"});
 	if ( $opt{"edge-primer-valid-sw"} ){
@@ -939,6 +1033,7 @@ sub checkParams {
 			&addMessage("PARAMS","edge-assembled-contig-file", "File not found. Please check the contig file input.") if ( ! -e $opt{"edge-assembled-contig-file"});
 			&addMessage("PARAMS","edge-assembled-contig-file", "Invalid input. Fasta format required.") if ( -e $opt{"edge-assembled-contig-file"} && ! is_fasta($opt{"edge-assembled-contig-file"}));
 		}else{
+			$opt{"edge-assembled-contig-file"}="";
 			$opt{"edge-spades-pacbio-file"} = $input_dir."/".$opt{"edge-spades-pacbio-file"} if ($opt{"edge-spades-pacbio-file"} =~ /^\w/);
 			&addMessage("PARAMS", "edge-spades-pacbio-file", "Invalid input. Fasta/q format required..") if ( -e $opt{"edge-spades-pacbio-file"} && ! is_fasta($opt{"edge-spades-pacbio-file"}) && ! is_fastq($opt{"edge-spades-pacbio-file"}));
 			 $opt{"edge-spades-nanopore-file"} = $input_dir."/".$opt{"edge-spades-nanopore-file"} if ( $opt{"edge-spades-nanopore-file"} =~ /^\w/);
@@ -959,61 +1054,30 @@ sub checkParams {
 		&addMessage("PARAMS", "edge-blast-nr", "NR Database directory not found. Please check the path.") unless ( defined $opt{'edge-blast-nr'} && -d "$opt{'edge-blast-nr'}" ); 
 	}
 	if ( $opt{"edge-phylo-sw"} ){
+		my (@snpPhylo_selected_refs,$num_selected);
 		&addMessage("PARAMS", "edge-phylo-patho", "Invalid input. Please select from precomputed SNP DB or form Genomes list.") if ( !$opt{'edge-phylo-patho'} && !defined $opt{'edge-phylo-ref-select'});
 		&addMessage("PARAMS", "edge-phylo-ref-select", "Invalid input. Please select from precomputed SNP DB or form Genomes list.") if ( !$opt{'edge-phylo-patho'} && !defined $opt{'edge-phylo-ref-select'});
 		&addMessage("PARAMS", "edge-phylo-patho", "You have both input types. Please select either from precomputed SNPdb OR form Genomes list.") if ( $opt{'edge-phylo-patho'} && ($opt{'edge-phylo-ref-select'} || $opt{'edge-phylo-ref-file'}));
+		@snpPhylo_selected_refs =  split /[\x0]/, $opt{"edge-phylo-ref-select"} if defined $opt{"edge-phylo-ref-select"};
+		@edge_phylo_ref_input = split /[\x0]/, $opt{"edge-phylo-ref-file"} if defined $opt{"edge-phylo-ref-file"};
+		$opt{"edge-phylo-ref-list"} = join ",",@snpPhylo_selected_refs if @snpPhylo_selected_refs;
+		$num_selected = scalar(@snpPhylo_selected_refs) + scalar(@edge_phylo_ref_input);
 		if ($opt{"edge-phylo-ref-file"}){
-			@edge_phylo_ref_input = split /[\x0]/, $opt{"edge-phylo-ref-file"} if defined $opt{"edge-phylo-ref-file"};
 			for my $i (0..$#edge_phylo_ref_input){
 				$edge_phylo_ref_input[$i] = $input_dir."/".$edge_phylo_ref_input[$i] if ($edge_phylo_ref_input[$i]=~ /^\w/);
-				my $id = 'edge-phylo-ref-file'. ($i + 1);
+				my $id = 'edge-phylo-ref-file-'. ($i + 1);
 				&addMessage("PARAMS",$id,"Invalid input. Fasta format required") if ( -e $edge_phylo_ref_input[$i] && ! is_fasta($edge_phylo_ref_input[$i]) );
 			}
 		}
-	}
-	if ($pipeline eq "qiime"){
-		$opt{"edge-qiime-sw"} =1;
-		$opt{"edge-qc-sw"} =0;
-		$opt{"edge-hostrm-sw"} =0;
-		$opt{"edge-assembly-sw"} = 0;
-		$opt{"edge-ref-sw"} = 0;
-		$opt{"edge-taxa-sw"} = 0;
-		$opt{"edge-contig-taxa-sw"} = 0;
-		$opt{"edge-anno-sw"} = 0 ;
-		$opt{"edge-phylo-sw"} = 0 ;
-		$opt{"edge-primer-valid-sw"} = 0 ;
-		$opt{"edge-primer-adj-sw"} = 0 ;
-		$opt{"edge-anno-sw"} = 0 ;
-		$opt{"edge-jbroswe-sw"} = 0 ;
-		@edge_qiime_barcode_input = split /[\x0]/, $opt{"edge-qiime-barcode-fq-file-input"} if defined $opt{"edge-qiime-barcode-fq-file-input"};
-		foreach my $i (0..$#edge_qiime_barcode_input){
-			my $id = "edge-qiime-barcode-fq-file-input". ($i + 1);
-			$edge_qiime_barcode_input[$i] =~ s/ //g;
-			$edge_qiime_barcode_input[$i] = "$input_dir/$edge_qiime_barcode_input[$i]" if ($edge_qiime_barcode_input[$i] =~ /^\w/);
-			&addMessage("PARAMS","$id","Error: duplicated input.") if ($files{$edge_qiime_barcode_input[$i]});
-			$files{$edge_qiime_barcode_input[$i]}=1;
-			if ($edge_qiime_barcode_input[$i]  && -e $edge_qiime_barcode_input[$i]){
-				&addMessage("PARAMS","$id","Input error. FASTQ format required") if ( ! is_fastq($edge_qiime_barcode_input[$i]));
-			}else{
-				&addMessage("PARAMS","$id","Input error. Please check the file path.");
-				
-			}
-		}
-		&addMessage("PARAMS", "edge-qiime-barcode-length","Invalid input. Natural number required.") unless $opt{"edge-qiime-barcode-length"}=~ /^\d+$/;
-		&addMessage("PARAMS", "edge-qiime-phred-quality-threshold", "Invalid input. Input should in range 0-41.") unless ( $opt{"edge-qiime-phred-quality-threshold"} >= 0 && $opt{"edge-qiime-phred-quality-threshold"} <=41 );
-		&addMessage("PARAMS", "edge-qiime-max-n","Invalid input. Natural number required.") unless $opt{"edge-qiime-max-n"}=~ /^\d+$/;
-		&addMessage("PARAMS", "edge-qiime-min-per-read-length-fraction","Invalid input. Floating number between 0 and 1 required.") unless ( $opt{"edge-qiime-min-per-read-length-fraction"} >=0 && $opt{"edge-qiime-min-per-read-length-fraction"} <=1 );
-		&addMessage("PARAMS", "edge-qiime-minimum-otu-size","Invalid input. Natural number required.") unless $opt{"edge-qiime-minimum-otu-size"}=~ /^\d+$/;
-		&addMessage("PARAMS", "edge-qiime-similarity","Invalid input. Floating number between 0 and 1 required.") unless ( $opt{"edge-qiime-similarity"} >=0 && $opt{"edge-qiime-similarity"} <=1 );
-		&addMessage("PARAMS", "edge-qiime-sampling-depth","Invalid input. Natural number required.") unless $opt{"edge-qiime-sampling-depth"}=~ /^\d+$/;
-
-		
-	} else {##sample metadata
-		if ( $sys->{edge_sample_metadata} && $opt{"edge-metadata-sw"}){
-			#&addMessage("PARAMS", "country", "Metadata sample location country or lat&lng required.") unless ( $opt{'country'} || ($opt{'lat'} && $opt{'lng'})); 
-			#&addMessage("PARAMS", "edge-pg-collection-date", "Metadata sample collection date is required.") unless ( $opt{'edge-pg-collection-date'} ); 
-			#&addMessage("PARAMS", "edge-pg-seq-date", "Metadata sample sequencing date is required.") unless ( $opt{'edge-pg-seq-date'} ); 
-		} 
+		$opt{"edge-phylo-ref-list-file"} = join ",",@edge_phylo_ref_input if @edge_phylo_ref_input;
+		if ($edge_phylo_genome_file_max && $num_selected > $edge_phylo_genome_file_max){
+                        &addMessage("PARAMS","edge-phylo-ref-select","The maximum genome for phylogenetic analysis is $edge_phylo_genome_file_max") if defined $opt{"edge-phylo-ref-select"};
+                        &addMessage("PARAMS","edge-phylo-ref-file-1","The maximum genome for phylogenetic analysis is $edge_phylo_genome_file_max") if (defined $opt{"edge-phylo-ref-file"});
+                }
+		if ($num_selected < 3 && ($opt{'edge-phylo-ref-select'} || $opt{'edge-phylo-ref-file'})){
+                        &addMessage("PARAMS","edge-phylo-ref-select","Please select/add at least three genomes") if defined $opt{"edge-phylo-ref-select"};
+                        &addMessage("PARAMS","edge-phylo-ref-file-1","Please select/add at least three genomes") if (defined $opt{"edge-phylo-ref-file"});
+                }
 	}
 }
 
@@ -1024,7 +1088,7 @@ sub parse_qiime_mapping_files{
 	my @pe1_files;
 	my @pe2_files;
 	my @se_files;
-	if ( ! -d "$input_dir/$qiime_dir"  && ! -d "$qiime_dir"){
+	if ( ! -d "$input_dir/$qiime_dir" && ! -d "$qiime_dir"){
 		my $msg = "ERROR: the input $qiime_dir directroy does not exist or isn't a directory\n";
 		exit(1);
 	}
@@ -1054,6 +1118,7 @@ sub parse_qiime_mapping_files{
 		}
 		close $fh;
 	}
+	&addMessage("PARAMS","edge-qiime-mapping-file-input1","No fastq input in the qiime mapping file") if (!@se_files && !@pe1_files && !@pe2_files);
 	return (\@pe1_files,\@pe2_files,\@se_files);
 }
 
@@ -1111,58 +1176,275 @@ sub open_file
 ##sample metadata
 sub createSampleMetadataFile {
 	foreach my $pname (@pnames){
-		my $metadata_out = "$out_dir/$pname/sample_metadata.txt";
-		$metadata_out = "$out_dir/" . $projlist->{$pname}->{projCode} . "/sample_metadata.txt" if ($username && $password);
-		`mv $metadata_out $metadata_out.bak` if( -e $metadata_out );
-		if ( $sys->{edge_sample_metadata} && $opt{"edge-metadata-sw"}){
+		if ( $sys->{edge_sample_metadata} && ($opt{'metadata-study-title'} || $opt{'metadata-sample-name'} || $opt{'metadata-exp-title'})){
+			#travels
+			my $travel_out = "$out_dir/$pname/metadata_travels.txt";
+			$travel_out = "$out_dir/" . $projlist->{$pname}->{projCode} . "/metadata_travels.txt" if ($username && $password);
+			my @travels = split /[\x0]/, $opt{"metadata-travel-location"};
+			my @travel_df = split /[\x0]/, $opt{"metadata-travel-date-f"};
+			my @travel_dt = split /[\x0]/, $opt{"metadata-travel-date-t"};
+			my @cities = split /[\x0]/, $opt{"locality"};
+			my @states = split /[\x0]/, $opt{'administrative_area_level_1'};
+			my @countries = split /[\x0]/, $opt{'country'};
+			my @lats = split /[\x0]/, $opt{'lat'};
+			my @lngs = split /[\x0]/, $opt{'lng'};
+			my $geoLoc_cnt = 0;
+			if (@travels > 0) {
+				open TOUT, ">$travel_out";
+				foreach my $travel (@travels) {
+					print TOUT "travel-date-from=".$travel_df[$geoLoc_cnt]."\n";
+					print TOUT "travel-date-to=".$travel_dt[$geoLoc_cnt]."\n";
+					print TOUT "travel-location=$travel\n";
+					print TOUT "city=".$cities[$geoLoc_cnt]."\n";
+					print TOUT "state=".$states[$geoLoc_cnt]."\n";
+					print TOUT "country=".$countries[$geoLoc_cnt]."\n";
+					print TOUT "lat=".$lats[$geoLoc_cnt]."\n";
+					print TOUT "lng=".$lngs[$geoLoc_cnt]."\n";
+					$geoLoc_cnt++;
+				}
+				close(TOUT);
+			}
+
+			#symptoms
+			my $symptom_out = "$out_dir/$pname/metadata_symptoms.txt";
+			$symptom_out = "$out_dir/" . $projlist->{$pname}->{projCode} . "/metadata_symptoms.txt" if ($username && $password);
+			my @symptom_cats = split /[\x0]/, $opt{"metadata-symptom-cat"};
+			my @symptom_catIDs = split /[\x0]/, $opt{"metadata-symptom-catID"};
+			my ($cat,$catID);
+			my $symptomLines;
+			for(my $cat_cnt=0; $cat_cnt<@symptom_cats;$cat_cnt++) {
+				$cat = $symptom_cats[$cat_cnt];
+				$catID = $symptom_catIDs[$cat_cnt];
+				my @symptoms = split /[\x0]/, $opt{"metadata-symptom-$catID"};
+				foreach my $symptom(@symptoms) {
+					$symptomLines .= "$cat\t$symptom\n";
+				}
+			}
+			if($symptomLines) {
+				open SOUT, ">$symptom_out";
+				print SOUT "$symptomLines";
+				close(SOUT);
+			}
+
+			#sample metadata
+			my $metadata_out = "$out_dir/$pname/metadata_sample.txt";
+			$metadata_out = "$out_dir/" . $projlist->{$pname}->{projCode} . "/metadata_sample.txt" if ($username && $password);
 			open OUT,  ">$metadata_out";
-			print OUT "type=".$opt{'edge-sample-type'}."\n" if ( $opt{'edge-sample-type'} ); 
-			if( $opt{'edge-sample-type'} eq "human") {
-				if($opt{'pg-cb-gender'}) {
-					print OUT "gender=".$opt{'edge-pg-gender'}."\n";
-				}
-				if($opt{'pg-cb-age'}) {
-					print OUT "age=".$opt{'edge-pg-age'}."\n";
-				}
-			}
+                        print OUT "sra_run_accession=".$opt{'metadata-sra-run-acc'}."\n" if( $opt{'metadata-sra-run-acc'});
 
-			if( $opt{'edge-sample-type'} eq "human" || $opt{'edge-sample-type'} eq "animal") {
-				print OUT "host=".$opt{'edge-pg-host'}."\n";
-				print OUT "host_condition=".$opt{'edge-pg-host-condition'}."\n";
-				print OUT "source=".$opt{'edge-sample-source-host'}."\n";
+			my $id = $opt{'metadata-study-id'};
+			$id = `perl edge_db.cgi study-title-add "$opt{'metadata-study-title'}"` unless $id;
+			print OUT "study_id=$id\n";
+			print OUT "study_title=".$opt{'metadata-study-title'}."\n" if ( $opt{'metadata-study-title'} ); 
+			`perl edge_db.cgi study-type-add "$opt{'metadata-study-type'}"`;
+			print OUT "study_type=".$opt{'metadata-study-type'}."\n" if ( $opt{'metadata-study-type'} ); 
+			if($batch_sra_run) {
+				print OUT "study_type=SRA\n";
+			}
+			print OUT "sample_name=".$opt{'metadata-sample-name'}."\n" if ( $opt{'metadata-sample-name'} ); 
+			print OUT "sample_type=".$opt{'metadata-sample-type'}."\n" if ( $opt{'metadata-sample-type'} ); 
+
+			if( $opt{'metadata-sample-type'} eq "human" || $opt{'metadata-sample-type'} eq "animal") {
+				if($opt{'metadata-sample-type'} eq "human") {
+					if($opt{'metadata-host-gender-cb'}) {
+						print OUT "gender=".$opt{'metadata-host-gender'}."\n";
+					}
+					if($opt{'metadata-host-age-cb'}) {
+						print OUT "age=".$opt{'metadata-host-age'}."\n";
+					}
+					print OUT "host=human\n";
+				} else {
+					`perl edge_db.cgi animal-host-add "$opt{'metadata-host'}"`;
+					print OUT "host=".$opt{'metadata-host'}."\n";
+				}
+				print OUT "host_condition=".$opt{'metadata-host-condition'}."\n";
+				`perl edge_db.cgi isolation-source-add "$opt{'metadata-isolation-source'}"`;
+				print OUT "isolation_source=".$opt{'metadata-isolation-source'}."\n";
 			} else {
-				print OUT "source=".$opt{'edge-sample-source-nonhost'}."\n";
+				`perl edge_db.cgi isolation-source-add "$opt{'metadata-isolation-source'}" "environmental"`;
+				print OUT "isolation_source=".$opt{'metadata-isolation-source'}."\n";
 			}
-			print OUT "source_detail=".$opt{'edge-pg-sample-source-detail'}."\n";
-			print OUT "collection_date=".$opt{'edge-pg-collection-date'}."\n" if ( $opt{'edge-pg-collection-date'} );
-			print OUT "city=".$opt{'locality'}."\n" if ( $opt{'locality'} );
-			print OUT "state=".$opt{'administrative_area_level_1'}."\n" if ( $opt{'administrative_area_level_1'} );
-			print OUT "country=".$opt{'country'}."\n" if ( $opt{'country'} );
-			print OUT "lat=".$opt{'lat'}."\n" if ( $opt{'lat'} );
-			print OUT "lng=".$opt{'lng'}."\n" if ( $opt{'lng'} );
-			print OUT "seq_platform=".$opt{'edge-pg-seq-platform'}."\n" if ( $opt{'edge-pg-seq-platform'} );
-
-			if($opt{'edge-pg-seq-platform'} eq "Illumina") {
-				print OUT "sequencer=".$opt{'edge-pg-sequencer-ill'}."\n";
-			} elsif($opt{'edge-pg-seq-platform'} eq "IonTorrent") {
-				print OUT "sequencer=".$opt{'edge-pg-sequencer-ion'}."\n";
-			} elsif($opt{'edge-pg-seq-platform'} eq "Nanopore") {
-				print OUT "sequencer=".$opt{'edge-pg-sequencer-nan'}."\n";
-			} elsif($opt{'edge-pg-seq-platform'} eq "PacBio") {
-				print OUT "sequencer=".$opt{'edge-pg-sequencer-pac'}."\n";
-			}
-
-			print OUT "seq_date=".$opt{'edge-pg-seq-date'}."\n" if ( $opt{'edge-pg-seq-date'} );
-
+			
+			print OUT "collection_date=".$opt{'metadata-sample-collection-date'}."\n" if ( $opt{'metadata-sample-collection-date'} );
+			print OUT "location=".$opt{'metadata-sample-location'}."\n" if ( $opt{'metadata-sample-location'} );
+			print OUT "city=".$cities[$geoLoc_cnt]."\n" if($cities[$geoLoc_cnt]);
+			print OUT "state=".$states[$geoLoc_cnt]."\n" if($states[$geoLoc_cnt]);
+			print OUT "country=".$countries[$geoLoc_cnt]."\n" if($countries[$geoLoc_cnt]);
+			print OUT "lat=".$lats[$geoLoc_cnt]."\n" if($lats[$geoLoc_cnt]);
+			print OUT "lng=".$lngs[$geoLoc_cnt]."\n" if($lngs[$geoLoc_cnt]);
+			print OUT "experiment_title=".$opt{'metadata-exp-title'}."\n";
+			`perl edge_db.cgi seq-center-add "$opt{'metadata-seq-center'}"`;
+			print OUT "sequencing_center=".$opt{'metadata-seq-center'}."\n";
+			`perl edge_db.cgi sequencer-add "$opt{'metadata-sequencer'}"`;
+			print OUT "sequencer=".$opt{'metadata-sequencer'}."\n";
+			print OUT "sequencing_date=".$opt{'metadata-seq-date'}."\n" if ( $opt{'metadata-seq-date'} );
 			close OUT;
-		} else {
-			if(-e $metadata_out) {
-				`rm $metadata_out`;
-			}
+		} 
 
+		#run metadata
+		if(!$batch_sra_run) {
+			my $run_out = "$out_dir/$pname/metadata_run.txt";
+			$run_out = "$out_dir/" . $projlist->{$pname}->{projCode} . "/metadata_run.txt" if ($username && $password);
+			open ROUT,  ">$run_out";
+			my $id = `perl edge_db.cgi run-add "$opt{'edge-proj-name'}"`;
+			print ROUT "edge-run-id=$id\n";
+			close ROUT;
+		} 
+
+		#user defined metadata
+		if($opt{'metadata-other'}) {
+			my $other_out = "$out_dir/$pname/metadata_other.txt";
+			$other_out = "$out_dir/" . $projlist->{$pname}->{projCode} . "/metadata_other.txt" if ($username && $password);
+			open OUT,  ">$other_out";
+			print OUT $opt{'metadata-other'};
+			close OUT;
 		}
 	}
 }
+
+sub getSRAmetaData{
+	my $accession=shift;
+	my $proxy = $ENV{HTTP_PROXY} || $ENV{http_proxy};
+	$proxy = "--proxy \'$proxy\' " if ($proxy);
+	my $url="https://www.ebi.ac.uk/ena/data/warehouse/filereport?accession=$accession&result=read_run&display=report&fields=run_accession,sample_accession,study_accession,study_title,experiment_title,scientific_name,instrument_model,instrument_platform,library_layout,base_count&limit=1000";
+	my $cmd = ($sys->{'download_interface'} =~ /curl/i)?"curl -A \"Mozilla/5.0\" -L $proxy \"$url\" 2>/dev/null":"wget -v -U \"Mozilla/5.0\" -O - \"$url\" 2>/dev/null";
+	my $web_result = `$cmd`;
+	my @lines = split '\n', $web_result;
+	return 1 if ($#lines == 0);
+        #print STDERR "$#lines run(s) found from EBI-ENA.\n";
+        foreach my $line (@lines){
+		next if $line =~ /^study_accession/;
+                chomp;
+		my @f = split '\t', $line;
+		
+                my $run_acc  = $f[0]; #run_accession
+		my $sample_acc = $f[1]; #sample_accession
+		my $study_acc = $f[2]; #study_accession
+		my $study_title = $f[3]; #study_title
+                my $exp_title  = $f[4]; #experiment_accession
+		my $instrument = $f[6]; #instrument_model
+                my $platform = $f[7]; #instrument_platform
+                my $library  = $f[8]; #library_layout
+                $opt{'metadata-sra-run-acc'} = $run_acc;
+		$opt{'metadata-study-id'} = $study_acc;
+		$opt{'metadata-study-title'} = $study_title;
+ 		$opt{'metadata-exp-title'} = $exp_title;
+		$opt{'metadata-sequencer'} = $instrument;
+
+		my $url2 = "http://www.ebi.ac.uk/ena/data/warehouse/search?query=accession=$sample_acc&result=sample&fields=accession,collection_date,country,description,first_public,isolation_source,location,scientific_name,sample_alias,center_name,environment_material,host,host_status,host_sex&display=report";
+		my $cmd2 =  ($sys->{'download_interface'} =~ /curl/i)?"curl -A \"Mozilla/5.0\" -L $proxy \"$url2\" 2>/dev/null":"wget -v -U \"Mozilla/5.0\" -O - \"$url2\" 2>/dev/null";
+		my $web_result2 = `$cmd2`;
+		my @lines2 = split '\n', $web_result2;
+		my ($sampleType, $host, $collectionDate, $city, $state, $country, $lat, $lng,$seqPlatform, $gender, $hostCondition, $source, $sampleName, $center, $seqDate, $location);
+		foreach my $line2 (@lines2){
+			chomp;
+			next if($line2 =~ /^accession/);
+			next if ($line2 =~ /^\s*$/);
+			my @parts = split /\t/, $line2;
+			$collectionDate = $parts[1];
+			if($collectionDate =~ /\//) {
+				my @its = split /\//, $collectionDate;
+				$collectionDate = $its[1]; 
+			}
+			print STDERR $collectionDate,"\n";;
+			$location = $parts[2];
+  			$sampleName = $parts[3];
+ 			$sampleName = $parts[8] unless $sampleName;
+ 			$seqDate = $parts[4];
+   			if($seqDate =~ /\//) {
+   				my @its = split /\//, $seqDate;
+  				$seqDate = $its[1];     
+			}       
+			$source = $parts[5];
+			$source = $parts[10] unless $source;
+			my $latlng = $parts[6];
+			$latlng =~ s/^\s+//;
+			my @its = split /\s+/, $latlng;
+			$lat = $its[0];
+			$lng = $its[2];
+			if($its[1] eq "S") {
+				$lat = -$lat;
+			}
+			if($its[3] eq "W") {
+				$lng = -$lng;
+			}
+			$host = $parts[11];
+			$sampleType = "environmental";
+			my $stype = lc $parts[7];
+			if($stype =~ /human|homo/ || lc($host) =~ /human|homo/) {
+				$sampleType = "human";
+			} 
+			elsif($stype =~ /mouse|rat|pig|fish|ant|chicken|bee|frog/ || lc($host) =~ /mouse|rat|pig|fish|ant|chicken|bee|frog/) {
+				$sampleType = "animal";
+			} 
+			$center = $parts[9];
+			$hostCondition = $parts[12];
+			$gender = $parts[13];   
+  			($lat,$lng,$city,$state,$country,$location) = getGeocode($lat, $lng, $location);	
+
+			$opt{'metadata-sample-name'} = $sampleName;
+			$opt{'metadata-sample-type'} = $sampleType;
+			$opt{'metadata-host-gender'} = $gender;
+			$opt{'metadata-host'} = $host;
+			$opt{'metadata-host-condition'} = $hostCondition;
+			$opt{'metadata-isolation-source'} = $source;
+			$opt{'metadata-sample-collection-date'} = $collectionDate;
+			$opt{'metadata-sample-location'} = $location;
+			$opt{'locality'} = $city if $city ne "NA";
+ 			$opt{'administrative_area_level_1'} = $state if $state ne "NA";
+ 			$opt{'country'} = $country;
+ 			$opt{'lat'} = $lat;
+			$opt{'lng'} = $lng;
+			$opt{'metadata-seq-date'} = $seqDate;
+ 			$opt{'metadata-seq-center'} = $center;
+
+		}
+	}
+	return 0;
+}
+
+sub getGeocode($){
+	my ($lat,$lng,$location) = @_;
+	my ($rlat, $rlng, $city, $state, $country);
+	my $format = "json"; #can also to 'xml'
+	my $geocodeapi = "https://maps.googleapis.com/maps/api/geocode/";
+	my $url;
+	if($lat && $lng) {
+		$url = $geocodeapi . $format . "?latlng=" . $lat.",".$lng;
+	} elsif($location) {
+		$url = $geocodeapi . $format . "?address=" . $location;
+	}
+	if($url) {
+		my $json = get($url);
+		my $d_json = decode_json( $json );
+
+		$rlat = $d_json->{results}->[0]->{geometry}->{location}->{lat};
+		$rlng = $d_json->{results}->[0]->{geometry}->{location}->{lng};
+	
+		if(!$location) {
+			$location = $d_json->{results}->[0]->{formatted_address};
+		}
+  
+	   for my $address_component (@{ $d_json->{results}[0]{address_components} }) {
+	     if ( $address_component->{types}[0] eq "locality") {
+	       $city = $address_component->{long_name};
+	     }
+
+	     if ( $address_component->{types}[0] eq "administrative_area_level_1") {
+	       $state = $address_component->{long_name};
+	     }
+
+	     if ( $address_component->{types}[0] eq "country") {
+	       $country = $address_component->{long_name};
+	     }
+	   }
+	}
+
+        $rlat = $lat unless $rlat;
+        $rlng = $lng unless $rlng;
+	return ($rlat, $rlng, $city, $state, $country, $location);
+}
+#################
 
 sub saveListToJason {
 	my ($list, $file) = @_;

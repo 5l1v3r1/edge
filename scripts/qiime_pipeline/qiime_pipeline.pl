@@ -29,7 +29,6 @@ my $EDGE_HOME = abs_path("$working_dir/../../");
 # set up environments
 $ENV{PATH}= "$EDGE_HOME/thirdParty/Anaconda2/bin:/scratch-218819/apps/anaconda2/bin:$RealBin/scripts/:$ENV{PATH}";
 
-
 sub Usage {
 	my $msg=shift;
 	my $short_usage = "perl $0 [options] -p reads1.fastq reads2.fastq -m mapping.txt -o out_directory ";

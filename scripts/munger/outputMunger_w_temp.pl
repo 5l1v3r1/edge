@@ -15,6 +15,8 @@ $mode         ||= $html_outfile ? "web" : "";
 $html_outfile ||= "$out_dir/HTML_Report/report.html";
 my @out_dir_parts = split('/', $out_dir);
 my $projname = $out_dir_parts[-1];
+my $sysconfig    = "$RealBin/../../edge_ui/sys.properties";
+my $sys          = &getSysParamFromConfig($sysconfig);
 
 ## Instantiate the variables
 my $getting_paired=0;
@@ -37,6 +39,8 @@ eval {
 #	print STDOUT "qc\n";
 	&pull_assy();
 #	print STDOUT "assay\n";
+	&pull_host_rev();
+#	print STDOUT "host rev\n";
 	&pull_anno();
 #	print STDOUT "anno\n";
 	&pull_referenceName();
@@ -47,8 +51,6 @@ eval {
 #	print STDOUT "read mapping ref\n";
 	&pull_contigmapping();
 #	print STDOUT "contig mapping\n";
-	&pull_host_rev();
-#	print STDOUT "host rev\n";
 	&pull_taxa();
 #	print STDOUT "taxa\n";
 	&pull_contig_taxa();
@@ -234,9 +236,7 @@ sub prep_jbrowse_link {
 
 ## sample metadata
 sub pull_sampleMetadata {
-	my $sysconfig    = "$RealBin/../../edge_ui/sys.properties";
-	my $sys          = &getSysParamFromConfig($sysconfig);
-	my $metadata = "$out_dir/sample_metadata.txt";
+	my $metadata = "$out_dir/metadata_sample.txt";
 	if($sys->{edge_sample_metadata} && -s $metadata) {
 		$vars->{OUT_SAMPLE_METADATA}   = 1;
 	}
@@ -244,9 +244,12 @@ sub pull_sampleMetadata {
         	open CONF, $metadata or die "Can't open $metadata $!";
         	while(<CONF>){
       			chomp;
-               	 	next if(/^#/);
+      			next if(/^#/);
            		if ( /(.*)=(.*)/ ){
-             			$vars->{SMD_TYPE} =$2 if ($1 eq "type");
+             			$vars->{SMD_STUDY_TITLE} =$2 if ($1 eq "study_title");
+             			$vars->{SMD_STUDY_TYPE} =$2 if ($1 eq "study_type");
+             			$vars->{SMD_NAME} =$2 if ($1 eq "sample_name");
+             			$vars->{SMD_TYPE} =$2 if ($1 eq "sample_type");
              			$vars->{OUT_SMD_GENDER} =1 if ($1 eq "gender");
              			$vars->{SMD_GENDER} =$2 if ($1 eq "gender");
              			$vars->{OUT_SMD_AGE} =1 if ($1 eq "age");
@@ -255,26 +258,93 @@ sub pull_sampleMetadata {
              			$vars->{SMD_HOST} =$2 if ($1 eq "host");
              			$vars->{OUT_SMD_HOST_CONDITION} =1 if ($1 eq "host_condition");
              			$vars->{SMD_HOST_CONDITION} =$2 if ($1 eq "host_condition");
-             			$vars->{SMD_SOURCE} =$2 if ($1 eq "source");
-             			$vars->{SMD_SOURCE_DETAIL} =$2 if ($1 eq "source_detail");
+             			$vars->{SMD_SOURCE} =$2 if ($1 eq "isolation_source");
              			$vars->{SMD_COLLECTION_DATE} =$2 if ($1 eq "collection_date");
+             			$vars->{SMD_LOCATION} =$2 if ($1 eq "location");
              			$vars->{SMD_CITY} =$2 if ($1 eq "city");
              			$vars->{SMD_STATE} =$2 if ($1 eq "state");
              			$vars->{SMD_COUNTRY} =$2 if ($1 eq "country");
              			$vars->{SMD_LAT} =$2 if ($1 eq "lat");
              			$vars->{SMD_LNG} =$2 if ($1 eq "lng");
-             			$vars->{SMD_SEQ_PLATFORM} =$2 if ($1 eq "seq_platform");
+             			$vars->{SMD_EXP_TITLE} =$2 if ($1 eq "experiment_title");
+             			$vars->{SMD_SEQ_CENTER} =$2 if ($1 eq "sequencing_center");
              			$vars->{SMD_SEQUENCER} =$2 if ($1 eq "sequencer");
-             			$vars->{SMD_SEQ_DATE} =$2 if ($1 eq "seq_date");
-             			$vars->{SMD_ID} =$2 if ($1 eq "id");
+             			$vars->{SMD_SEQ_DATE} =$2 if ($1 eq "sequencing_date");
               		}
-      		  }
+		}
         	close CONF;
+		pull_other();
+        	if($vars->{SMD_TYPE} eq "human") {
+				pull_travels();
+				pull_symptoms();
+		}
+
 	} else {
 		$vars->{OUT_SAMPLE_NO_METADATA}   = 1;
 	}
 }
 
+sub pull_other {
+	my $other = "$out_dir/metadata_other.txt";
+	return unless -e $other;
+	open CONF, $other or die "Can't open $other $!";
+        while(<CONF>){
+      		chomp;
+        	next if(/^#/);
+     		if ( /(.*)=(.*)/ ){
+			my $sym;
+			$sym->{SMD_OTHER_F}=$1;
+			$sym->{SMD_OTHER_V}=$2;
+			push @{$vars->{LOOP_SMD_OTHER}}, $sym;
+		}
+	}
+	close CONF;
+}
+
+sub pull_symptoms {
+	my $symptoms = "$out_dir/metadata_symptoms.txt";
+	return unless -e $symptoms;
+	open CONF, $symptoms or die "Can't open $symptoms $!";
+        while(<CONF>){
+      		chomp;
+        	next if(/^#/);
+     		if ( /(.*)\t(.*)/ ){
+			$vars->{OUT_SMD_SYMS} =1; 
+			my $sym;
+			$sym->{SMD_SYM_CAT}=$1;
+			$sym->{SMD_SYM}=$2;
+			push @{$vars->{LOOP_SMD_SYMS}}, $sym;
+		}
+	}
+	close CONF;
+}
+
+sub pull_travels {
+	my $travels = "$out_dir/metadata_travels.txt";
+	return unless -e $travels;
+	open CONF, $travels or die "Can't open $travels $!";
+	
+	my $from;
+	my $to;
+        while(<CONF>){
+      		chomp;
+        	next if(/^#/);
+     		if ( /(.*)=(.*)/ ){
+			$vars->{OUT_SMD_TVLS} =1; 
+			if ($1 eq "travel-date-from") {
+				$from = $2;
+			} elsif ($1 eq "travel-date-to") {
+				$to = $2;
+			} elsif ($1 eq "travel-location") {
+				my $sym;
+				$sym->{SMD_TVL_DATE}="$from ~ $to";
+				$sym->{SMD_TVL_LOC}=$2;
+				push @{$vars->{LOOP_SMD_TVLS}}, $sym;
+			}
+		}
+	}
+	close CONF;
+}
 
 sub getSysParamFromConfig {
 	my $config = shift;
@@ -300,7 +370,7 @@ sub getSysParamFromConfig {
 
 sub pull_assy {
 	my $err;
-	$err = `grep failed $out_dir/AssemblyBasedAnalysis/assembly.log` if (-e "$out_dir/AssemblyBasedAnalysis/assembly.log");
+	$err = `grep failed $out_dir/AssemblyBasedAnalysis/assembly.log | sed -e 's/\$/<br>/'` if (-e "$out_dir/AssemblyBasedAnalysis/assembly.log");
 	if ($err){
 		chomp $err;
 		$vars->{ASSYERR} = $err;
@@ -360,6 +430,7 @@ sub pull_contigmapping {
 					$refinfo->{"CMREF$idx"}=$temp[$i];
 				}
 				$refinfo->{"CMREFNAME"}=$refname->{$temp[0]}->{desc};
+				$refinfo->{"CMREF1"}="<a href='https://www.ncbi.nlm.nih.gov/nuccore/$refinfo->{'CMREF1'}'>$refinfo->{'CMREF1'}</a>" if ($refinfo->{'CMREF1'}=~/\w{1,4}_?\d+/);
 				$refinfo->{"CMREFFILE"}=$refname->{$temp[0]}->{file};
 				$refinfo->{"CMREFMAPPEDPCT"}= sprintf "%.2f", $temp[3]/$vars->{CMREADS}*100;
 				push @{$vars->{LOOP_CMREF}}, $refinfo;
@@ -395,7 +466,7 @@ sub pull_contigmapping {
 
 sub pull_anno {
 	my $err;
-	$err = `grep "No contigs" $out_dir/AssemblyBasedAnalysis/Annotation/Annotation.log` if (-e "$out_dir/AssemblyBasedAnalysis/Annotation/Annotation.log");
+	$err = `grep "No contigs" $out_dir/AssemblyBasedAnalysis/Annotation/Annotation.log | sed -e 's/\$/<br>/'` if (-e "$out_dir/AssemblyBasedAnalysis/Annotation/Annotation.log");
 	if ($err){
 		$vars->{ANOERR} = $err;
 	}
@@ -419,9 +490,10 @@ sub pull_anno {
 
 sub pull_qc {
 	my $err;
-	$err = `grep -i 'ERROR\\|invalid' $out_dir/QcReads/QC.log` if ( -e "$out_dir/QcReads/QC.log");
+	$err = `grep -i 'ERROR\\|invalid' $out_dir/QcReads/QC.log | sed -e 's/\$/<br>/'` if ( -e "$out_dir/QcReads/QC.log");
 	if ($err){
-		$vars->{QCERR} = "$err\nPlease check QC.log\n";
+		$out_dir =~ /.*(EDGE_output.*)/;
+		$vars->{QCERR} = "$err"."Please check <a target='new_window' data-ajax='false' href='$1/QcReads/QC.log'>QC.log</a>.";
 	}
 	return unless -e "$out_dir/QcReads/QC.stats.txt";
 	open(my $qcfh, "<", "$out_dir/QcReads/QC.stats.txt") or die $!;
@@ -445,7 +517,7 @@ sub pull_qc {
 		if ($_ =~ /^Reads Length:\s(.+)/) { $vars->{BEFOREMRL} = $1; next; }
 	}
 	close ($qcfh);
-	$NUM_READS_FOR_DOWNSTREAM = $vars->{AFTERREADS};
+	$NUM_READS_FOR_DOWNSTREAM = ($vars->{AFTERREADS} =~ m/(\d+)/);
 }
 
 sub pull_fastqCount {
@@ -473,7 +545,7 @@ sub pull_host_rev {
 			my $hr;
 			$hr->{HRTITLE}=$1;
 			$hr->{HRVALUE}=$2;
-			$NUM_READS_FOR_DOWNSTREAM = $2 if $1 eq "Total non-host reads";
+			$NUM_READS_FOR_DOWNSTREAM = ($hr->{HRVALUE} =~ m/(\d+)/) if $1 eq "Total non-host reads";
 			push @{$vars->{LOOP_HR}}, $hr;
 		}
 	}
@@ -494,8 +566,8 @@ sub pull_specialty_gene_profiling {
 		($num_input_reads) = ($NUM_READS_FOR_DOWNSTREAM =~ m/(\d+)/);
 		$vars->{SGREADTOTAL} = $num_input_reads;
 		# Support old runs
-		my ($ar_reads_output, $ar_reads_output_table, $vf_reads_output, $vf_reads_output_json, $vf_reads_output_sbhits, $vf_reads_output_table,$vf_read_output_krona);
-		if ( -e "$out_dir/ReadsBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED.txt") 
+		my ($ar_reads_output, $ar_reads_output_table, $vf_reads_output, $vf_reads_output_json, $vf_reads_output_sbhits, $vf_reads_output_table);
+		if ( -e "$out_dir/ReadsBasedAnalysis/SpecialtyGenes/${proj_realname}_AR_genes_ShortBRED.txt") 
 		{
 
 			$ar_reads_output="$out_dir/ReadsBasedAnalysis/SpecialtyGenes/${proj_realname}_AR_genes_ShortBRED.txt";
@@ -504,7 +576,6 @@ sub pull_specialty_gene_profiling {
 			$vf_reads_output_json="$out_dir/ReadsBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED_table.json";
 			$vf_reads_output_sbhits="$out_dir/ReadsBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_SBhits.txt";
 			$vf_reads_output_table="$out_dir/ReadsBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED_table.txt";
-			$vf_read_output_krona="$out_dir/ReadsBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED.krona.html";
 		}
 		else 
 		{
@@ -514,7 +585,6 @@ sub pull_specialty_gene_profiling {
 			$vf_reads_output_json="$out_dir/ReadsBasedAnalysis/SpecialtyGenes/VF_genes_ShortBRED_table.json";
 			$vf_reads_output_sbhits="$out_dir/ReadsBasedAnalysis/SpecialtyGenes/VF_genes_SBhits.txt";
 			$vf_reads_output_table="$out_dir/ReadsBasedAnalysis/SpecialtyGenes/VF_genes_ShortBRED_table.txt";
-			$vf_read_output_krona="$out_dir/ReadsBasedAnalysis/SpecialtyGenes/VF_genes_ShortBRED.krona.html";
 		}
 		if ( -e $ar_reads_output) {
 			my $ar_read_hit_num=`cat $ar_reads_output_table | wc -l`;
@@ -549,7 +619,6 @@ sub pull_specialty_gene_profiling {
 			#my $vf_read_hit_num=`awk 'BEGIN{a=0}{a=a+\$3}END{print a}' $vf_reads_output`;
 			my $vf_read_hit_num=`awk 'BEGIN{count=0}\$2>0{count++}END{print count}'  $vf_reads_output`;
 			chomp $vf_read_hit_num;
-			$vf_read_hit_num=$vf_read_hit_num-1;
 			$vars->{SGRVFHIT} = ($vf_read_hit_num)? $vf_read_hit_num : 0;
 		}
 		if ( -e $vf_reads_output_sbhits) {
@@ -608,7 +677,7 @@ sub pull_specialty_gene_profiling {
 			my $total_num=0;
 			my $cnt=1;
 
-			$vars->{SGRVF_KRONA} = $vf_read_output_krona;
+			$vars->{SGRVF_KRONA} = "$out_dir/ReadsBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED.krona.html";
 			
 			open (my $fh, $vf_reads_output_table) or die "Cannot read $vf_reads_output_table\n";
 			while(<$fh>){
@@ -634,7 +703,7 @@ sub pull_specialty_gene_profiling {
 		}
 	}
 	if ($vars->{OUT_OSG_SW}){
-		my ($ar_orf_output, $ar_orf_output_json, $ar_orf_output_table, $vf_orf_output, $vf_orf_output_json, $vf_orf_output_table, $vf_orf_output_krona);
+		my ($ar_orf_output, $ar_orf_output_json, $ar_orf_output_table, $vf_orf_output, $vf_orf_output_json, $vf_orf_output_table);
 		if ( -e "$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/${proj_realname}_AR_genes_rgi.json") 
 		{
 			$ar_orf_output="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/${proj_realname}_AR_genes_rgi.json";
@@ -642,8 +711,7 @@ sub pull_specialty_gene_profiling {
 			$ar_orf_output_table="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/${proj_realname}_AR_genes_rgi.txt";
 			$vf_orf_output="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_SBhits.txt";
 			$vf_orf_output_json="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED_table.json";
-			$vf_orf_output_table="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED_table.txt";			
-			$vf_orf_output_krona="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED.krona.html";
+			$vf_orf_output_table="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED_table.txt";
 		}	
 		else
 		{
@@ -653,7 +721,6 @@ sub pull_specialty_gene_profiling {
 			$vf_orf_output="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/VF_genes_SBhits.txt";
 			$vf_orf_output_json="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/VF_genes_ShortBRED_table.json";
 			$vf_orf_output_table="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/VF_genes_ShortBRED_table.txt";
-			$vf_orf_output_krona="$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/VF_genes_ShortBRED.krona.html";
 		}
 		if ( -e $ar_orf_output){
 			#my $ar_orf_hit_num = `awk '{print \$2}' $ar_orf_output | sort | uniq | wc -l`;
@@ -774,7 +841,7 @@ sub pull_specialty_gene_profiling {
 			my $cnt=1;
 			
 
-			$vars->{SGOVF_KRONA} = $vf_orf_output_krona;
+			$vars->{SGOVF_KRONA} = "$out_dir/AssemblyBasedAnalysis/SpecialtyGenes/${proj_realname}_VF_genes_ShortBRED.krona.html";
 
 
 
@@ -946,8 +1013,10 @@ sub pull_blast {
 
 sub pull_sra_download {
 	my $err;
-	$err = `grep Failed $out_dir/SRA_Download/log.txt` if (-e "$out_dir/SRA_Download/log.txt");
-	$err .= `grep "ERROR" $out_dir/SRA_Download/log.txt` if (-e "$out_dir/SRA_Download/log.txt");
+	if (! -e "$out_dir/SRA_Download/DownloadSRA.finished"){
+		$err = `grep -i Failed $out_dir/SRA_Download/log.txt | sed -e 's/\$/<br>/'` if (-e "$out_dir/SRA_Download/log.txt");
+		$err .= `grep "ERROR" $out_dir/SRA_Download/log.txt | sed -e 's/\$/<br>/'` if (-e "$out_dir/SRA_Download/log.txt");
+	}
 	if ($err){
 		$err =~ s/(http\S+)/<a href=\"$1\"  target=\"_blank\">$1<\/a>/;
 		$vars->{SRADERR} = $err;
@@ -1002,6 +1071,8 @@ sub pull_contig_taxa {
 			$vars->{CCPNTCB} = $2;
 			$vars->{CCPNCC}  = $3; 
 			$vars->{CCPNCCB} = $4;
+			$vars->{CCPNCCUB} = &_reformat_val($2 - $4 - $6);
+			$vars->{CCPNCCUB} = ($vars->{CCPNCCUB})? " ( + unclassified $vars->{CCPNCCUB} )" : "";
 			$vars->{CCPNUC}  = $5;
 			$vars->{CCPNUCB} = $6;
 		}
@@ -1025,7 +1096,8 @@ sub pull_contig_taxa {
 		push @{$vars->{LOOP_CCPSPE}},$row;
 	}
 	if ( ! -e "$out_dir/AssemblyBasedAnalysis/Taxonomy/$proj_realname.ctg_class.LCA.json" ){
-		system("perl $RealBin/../tab2Json_for_dataTable.pl -project_dir $out_dir -mode contig $out_dir/AssemblyBasedAnalysis/Taxonomy/$proj_realname.ctg_class.LCA.csv > $out_dir/AssemblyBasedAnalysis/Taxonomy/$proj_realname.ctg_class.LCA.json");
+		my $row_limit = $sys->{edgeui_result_table_rows} || 3000;
+		system("perl $RealBin/../tab2Json_for_dataTable.pl -project_dir $out_dir -mode contig -limit $row_limit $out_dir/AssemblyBasedAnalysis/Taxonomy/$proj_realname.ctg_class.LCA.csv > $out_dir/AssemblyBasedAnalysis/Taxonomy/$proj_realname.ctg_class.LCA.json");
 	}
 }
 sub pull_taxa {
@@ -1089,7 +1161,7 @@ sub pull_taxa {
 					$cur_level ||= $temp[0];
 					last if $cur_level ne $temp[0];
 					my $mapped_reads = $toolname =~ /gottcha-/i ? $temp[8] : $temp[2];
-					$creads += $mapped_reads;
+					$creads += $mapped_reads if ($mapped_reads =~ /\d/);
 					$creads = "N/A" if $toolname =~ /metaphlan/i;
 				}
 				close LIST;
@@ -1102,10 +1174,9 @@ sub pull_taxa {
 			### tool result
 			next if $temp[2] ne "species";
 			my $tool;
-			$tool->{CPTOOL_CPABU_PMD} = 1 if $toolname =~ /gottcha-/;
-			$tool->{CPTOOL_GOTTCHA2_LINEAR_LEN} = 1 if $toolname =~ /gottcha2-/;
-			$tool->{CPTOOL_GOTTCHA2_LINEAR_DOC} = 1 if $toolname =~ /gottcha2-/;
-
+			$tool->{CPTOOL_CPABU_PMD} = 1 if $toolname =~ /gottcha-/i;
+			$tool->{CPTOOL_GOTTCHA2} = 1 if $toolname =~ /gottcha2-/i;
+			$tool->{CPTOOL_PANGIA} = 1 if $toolname =~ /pangia/i;
 			
 			my $count=0;
 			if (-e $abu_list){
@@ -1118,7 +1189,7 @@ sub pull_taxa {
 					if( $t[0] eq "species"){
 						$res_row->{CPABU_LVL} = $t[0];
 						$res_row->{CPABU_TAX} = ($t[1] =~ /unclassied|unassign/i or $t[1] eq "NA" )? $t[1]:
-									"<a href=\'http://www.ncbi.nlm.nih.gov/genome/?term=\"$t[1]\"\' target='_blank' >$t[1]</a>";
+									"<a href=\'http://www.ncbi.nlm.nih.gov/genome/?term=\"$t[1]\"\' target='_blank'>$t[1]</a>";
 						$res_row->{CPABU_DOWNLOAD_TAX} = $t[1];
 						$res_row->{CPABU_DOWNLOAD_TAX_ID} = $t[1];
 					
@@ -1133,6 +1204,15 @@ sub pull_taxa {
 							$res_row->{GOTTCHA2_LINEAR_LEN} = _reformat_val($t[8]);
 							$res_row->{GOTTCHA2_LINEAR_DOC} = sprintf "%.2f", $t[9];
 							$res_row->{CPABU_ABU} = sprintf "%.1f", ($t[10]*100);
+							$res_row->{CPABU_DOWNLOAD_TAX_ID} = $t[4];
+						}
+						elsif( $toolname =~ /pangia/ ){
+							$res_row->{CPABU_REA} = _reformat_val($t[2]);
+							$res_row->{PANGIA_LINEAR_COV}  = sprintf "%.2f", $t[16];
+							$res_row->{PANGIA_LINEAR_DOC}  = sprintf "%.2f", $t[11];
+							$res_row->{PANGIA_LINEAR_RSNB} = _reformat_val(sprintf "%.2f", $t[7]);
+							$res_row->{PANGIA_LINEAR_SCR}  = $t[13];
+							$res_row->{CPABU_ABU} = sprintf "%.1f", ($t[14]*100);
 							$res_row->{CPABU_DOWNLOAD_TAX_ID} = $t[4];
 						}
 						elsif( $toolname =~ /metaphlan/ ){
@@ -1161,6 +1241,7 @@ sub pull_taxa {
 			$tool->{CPTOOL_LABEL} = "GOTTCHA2 (viral species database)"     if $row->{CPTOOL} =~ /gottcha2-.*-v/;
 			$tool->{CPTOOL_LABEL} = "Kraken (mini database)"       if $row->{CPTOOL} =~ /kraken_mini/;
 			$tool->{CPTOOL_LABEL} = "BWA (reads mapping)"          if $row->{CPTOOL} =~ /bwa/;
+			$tool->{CPTOOL_LABEL} = "PanGIA"          if $row->{CPTOOL} =~ /pangia/;
 
 			$tool->{CPTOOL}       = $row->{CPTOOL};
 			$tool->{CPTOOL_TREE}  = "$vars->{CPDIR}/1_$reads_type/$row->{CPTOOL}/$reads_type-$row->{CPTOOL}.tree.svg";
@@ -1171,7 +1252,7 @@ sub pull_taxa {
 
 			$tool->{CPTOOL_TREE}  = "" unless -e $tool->{CPTOOL_TREE};
 			$tool->{CPTOOL_KRONA} = "" unless -e $tool->{CPTOOL_KRONA};
-			$tool->{CPABU_DOWNLOAD_LIST} = 1 if ($row->{CPTOOL}=~/gottcha|bwa/);
+			$tool->{CPABU_DOWNLOAD_LIST} = 1 if ($row->{CPTOOL}=~/gottcha|bwa|pangia/);
 
 			push @{$vars->{LOOP_CPTOOL}}, $tool;
 		}
@@ -1196,7 +1277,8 @@ sub pull_readmapping_contig {
 	$vars->{RMUNMAPPED}    = $vars->{RMUSED} - $vars->{RMMAPPED};
 	$vars->{RMUNMAPPEDPCT} = sprintf "%.2f", $vars->{RMUNMAPPED}/$vars->{RMUSED}*100;
 	if ( ! -e "$out_dir/AssemblyBasedAnalysis/readsMappingToContig/readsToContigs_coverage.table.json"){
-		system("perl $RealBin/../tab2Json_for_dataTable.pl -project_dir $out_dir -mode contig $out_dir/AssemblyBasedAnalysis/readsMappingToContig/readsToContigs_coverage.table > $out_dir/AssemblyBasedAnalysis/readsMappingToContig/readsToContigs_coverage.table.json");
+		my $row_limit = $sys->{edgeui_result_table_rows} || 3000;
+		system("perl $RealBin/../tab2Json_for_dataTable.pl -project_dir $out_dir -mode contig -limit $row_limit $out_dir/AssemblyBasedAnalysis/readsMappingToContig/readsToContigs_coverage.table > $out_dir/AssemblyBasedAnalysis/readsMappingToContig/readsToContigs_coverage.table.json");
 	}
 }
 
@@ -1441,8 +1523,10 @@ sub pull_summary {
 
 	$vars->{PROJSTATUS}        = "Unstarted"   if $lastline =~ /EDGE_UI.*unstarted/;
 	$vars->{PROJSTATUS}        = "Interrupted" if $lastline =~ /EDGE_UI.*interrupted/;
-	$vars->{PROJSTATUS}        = "Archived" if $lastline =~ /EDGE_UI.*archived/;
+	$vars->{PROJSTATUS}        = "Archived"	   if $lastline =~ /EDGE_UI.*archived/;
 	$prog->{$ord}->{GNLSTATUS} = "Interrupted" if $vars->{PROJSTATUS} eq "Interrupted"; #turn last step to unfinished
+	$vars->{PROJSTATUS}        = "Complete"    if $mode ne "web"; # run by end of runPipeline  
+	$prog->{$ord}->{GNLSTATUS} = "Complete" if $mode ne "web";
 	
 	#Reads Taxonomy Classification
 	$ord = $map{"Reads Taxonomy Classification"};
@@ -1453,7 +1537,7 @@ sub pull_summary {
 	while(<PROC_CUR>) {
 		chomp;
 		#parse input files
-		if( /^\[RUN_TOOL\] \[(.*)\] (COMMAND|Logfile)/ ||  /^Qiime \[.*\]\s+(.*)/ ){
+		if( /^\[RUN_TOOL\] \[(.*)\] (COMMAND|Logfile)/ ||  /^Qiime \[.*\]\s+(.*)/ || /^\[RUN_TOOL\] \[(.*)\] (Result exists)/){
 			$step = $1;
 			next if defined $toolmap{$step};
 			$ord++;
@@ -1461,6 +1545,7 @@ sub pull_summary {
 			$prog->{$ord}->{GNLANALYSIS} = "<span style='margin-left:3em'>$step</span>";
 			$prog->{$ord}->{GNLRUN}      = "On";
 			$prog->{$ord}->{GNLSTATUS}   = "<span class='edge-fg-orange'>Running</span>";
+			$prog->{$ord}->{GNLSTATUS}   = "Skipped (result exists)" if ($2 and $2 =~ /Result exists/);
 		}
 		elsif( /^\[RUN_TOOL\] \[(.*)\] Error occured/){
 			my $ord = $toolmap{$1};
@@ -1468,8 +1553,8 @@ sub pull_summary {
 		}
 		elsif( /^\[RUN_TOOL\] \[(.*)\] Running time: (.*)/){
 			my $ord = $toolmap{$1};
-			$prog->{$ord}->{GNLSTATUS}   = "Complete";
 			$prog->{$ord}->{GNLTIME}     = $2;
+			$prog->{$ord}->{GNLSTATUS}   = "Complete" if ( $prog->{$ord}->{GNLSTATUS} !~ /Error|Skip/i);
 		}
 		elsif(/ERROR|failed/ and $vars->{LOG_qiime_SW}){
 			$prog->{$ord}->{GNLSTATUS}   = "<span class='edge-fg-red'>Error</span>";
@@ -1487,7 +1572,7 @@ sub pull_summary {
 		}
 	}
 	close PROC_CUR;
-
+	$prog->{$ord}->{GNLSTATUS} = "Interrupted" if $vars->{PROJSTATUS} eq "Interrupted"; #turn last step to unfinished
 
 	$getting_paired = 1 if scalar @INFILES > 1;
 	map {  $_=basename($_) if ($_); } @INFILES;

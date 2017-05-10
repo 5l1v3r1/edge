@@ -15,7 +15,7 @@ assembly_tools=( idba spades megahit )
 annotation_tools=( prokka RATT tRNAscan barrnap BLAST+ blastall phageFinder glimmer aragorn prodigal tbl2asn ShortBRED )
 utility_tools=( bedtools R GNU_parallel tabix JBrowse primer3 samtools sratoolkit ea-utils Rpackages)
 alignments_tools=( hmmer infernal bowtie2 bwa mummer RAPSearch2 )
-taxonomy_tools=( kraken metaphlan kronatools gottcha )
+taxonomy_tools=( kraken metaphlan kronatools gottcha gottcha2 pangia )
 phylogeny_tools=( FastTree RAxML )
 perl_modules=( perl_parallel_forkmanager perl_excel_writer perl_archive_zip perl_string_approx perl_pdf_api2 perl_html_template perl_html_parser perl_JSON perl_bio_phylo perl_xml_twig perl_cgi_session )
 python_packages=( Anaconda2 Anaconda3 )
@@ -54,7 +54,7 @@ echo "
 
 
 install_spades(){
-local VER=3.7.1
+local VER=3.9.1
 echo "------------------------------------------------------------------------------
                            Installing SPAdes $VER
 ------------------------------------------------------------------------------
@@ -166,7 +166,7 @@ echo "
 
 install_sratoolkit()
 {
-local VER=2.5.4
+local VER=2.8.1
 echo "------------------------------------------------------------------------------
                            Installing sratoolkit.$VER-linux64
 ------------------------------------------------------------------------------
@@ -186,6 +186,8 @@ if [[ -n ${http_proxy} ]]; then
 	proxy_without_protocol=${http_proxy#http://}
         ./bin/vdb-config --proxy $proxy_without_protocol
 fi
+
+ln -sf $HOME/.ncbi $rootdir/.ncbi
 
 cd $rootdir/thirdParty
 echo "
@@ -237,11 +239,17 @@ echo "--------------------------------------------------------------------------
                            installing R packages
 ------------------------------------------------------------------------------
 "
-echo "if(\"gridExtra\" %in% rownames(installed.packages()) == FALSE)  {install.packages(c(\"gtable_0.1.2.tar.gz\",\"gridExtra_2.0.0.tar.gz\"), repos = NULL, type=\"source\")}" | $rootdir/bin/Rscript -  
+# echo "if(\"gridExtra\" %in% rownames(installed.packages()) == FALSE)  {install.packages(c(\"gtable_0.1.2.tar.gz\",\"gridExtra_2.0.0.tar.gz\"), repos = NULL, type=\"source\")}" | $rootdir/bin/Rscript -
+tar xzf R_3.3.2_Packages.tgz  
+echo "if(\"gridExtra\" %in% rownames(installed.packages()) == FALSE)  {install.packages(c(\"gridExtra\"), repos = NULL, type=\"source\", contriburl=\"file:R_3.3.2_Packages/\")}" | $rootdir/bin/Rscript - 
+echo "if(\"devtools\" %in% rownames(installed.packages()) == FALSE)  {install.packages(c(\"devtools\"), repos = NULL, type=\"source\", contriburl=\"file:R_3.3.2_Packages/\")}" | $rootdir/bin/Rscript - 
+echo "if(\"phyloseq\" %in% rownames(installed.packages()) == FALSE)  {install.packages(c(\"phyloseq\"), repos = NULL, type=\"source\", contriburl=\"file:R_3.3.2_Packages/\")}" | $rootdir/bin/Rscript - 
+echo "if(\"MetaComp\" %in% rownames(installed.packages()) == FALSE)  {install.packages(c(\"MetaComp\"), repos = NULL, type=\"source\", contriburl=\"file:R_3.3.2_Packages/\")}" | $rootdir/bin/Rscript - 
+rm -r R_3.3.2_Packages/
 # need internet for following R packages.
-echo "if(\"devtools\" %in% rownames(installed.packages()) == FALSE)  {install.packages('devtools',repos='https://cran.rstudio.com/')}" | $rootdir/bin/Rscript -
-echo "if(\"phyloseq\" %in% rownames(installed.packages()) == FALSE)  {source('https://bioconductor.org/biocLite.R'); biocLite('phyloseq')} " | $rootdir/bin/Rscript -
-echo "library(devtools);  options(unzip='internal'); install_github(repo = 'seninp-bioinfo/MetaComp', ref = 'v1.3');" | $rootdir/bin/Rscript -
+# echo "if(\"devtools\" %in% rownames(installed.packages()) == FALSE)  {install.packages('devtools',repos='https://cran.rstudio.com/')}" | $rootdir/bin/Rscript -
+#echo "if(\"phyloseq\" %in% rownames(installed.packages()) == FALSE)  {source('https://bioconductor.org/biocLite.R'); biocLite('phyloseq')} " | $rootdir/bin/Rscript -
+#echo "library(devtools); options(unzip='internal'); install_github(repo = 'seninp-bioinfo/MetaComp', ref = 'v1.3');" | $rootdir/bin/Rscript -
 echo "
 ------------------------------------------------------------------------------
                            R packages installed
@@ -480,6 +488,42 @@ echo "
 "
 }
 
+install_gottcha2()
+{
+echo "------------------------------------------------------------------------------
+                           Compiling gottcha-2.1 BETA
+------------------------------------------------------------------------------
+"
+tar xvzf gottcha2.tar.gz
+cd gottcha2
+#ln -sf $PWD/gottcha.py $rootdir/bin/
+ln -sf $rootdir/database/GOTTCHA2 ./database
+cd $rootdir/thirdParty
+echo "
+------------------------------------------------------------------------------
+                           gottcha-2.1 BETA
+------------------------------------------------------------------------------
+"
+}
+
+install_pangia()
+{
+local VER=2.2.0
+echo "------------------------------------------------------------------------------
+                           Installing PANGIA $VER BETA
+------------------------------------------------------------------------------
+"
+tar xvzf pangia-$VER.tar.gz
+cd pangia
+#$rootdir/thirdParty/Anaconda3/bin/pip install git+https://github.com/pymc-devs/pymc3
+cd $rootdir/thirdParty
+echo "
+------------------------------------------------------------------------------
+                           gottcha-2.1 BETA
+------------------------------------------------------------------------------
+"
+}
+
 
 install_metaphlan()
 {
@@ -670,6 +714,7 @@ cp show-coords $rootdir/bin/.
 cp show-snps $rootdir/bin/.
 cp mgaps $rootdir/bin/.
 cp delta-filter $rootdir/bin/.
+cp mummerplot $rootdir/bin/.
 cd $rootdir/thirdParty
 echo "
 ------------------------------------------------------------------------------
@@ -703,20 +748,21 @@ echo "
 
 install_kronatools()
 {
+local VER=2.7
 echo "------------------------------------------------------------------------------
-               Installing KronaTools-2.6
+               Installing KronaTools-$VER
 ------------------------------------------------------------------------------
 "
-tar xvzf KronaTools-2.6.tar.gz
-cd KronaTools-2.6/KronaTools
+tar xvzf KronaTools-$VER.tar.gz
+cd KronaTools-$VER
 perl install.pl --prefix $rootdir --taxonomy $rootdir/database/Krona_taxonomy
 #./updateTaxonomy.sh --local
 cp $rootdir/scripts/microbial_profiling/script/ImportBWA.pl scripts/
-ln -sf $rootdir/thirdParty/KronaTools-2.6/KronaTools/scripts/ImportBWA.pl $rootdir/bin/ktImportBWA 
+ln -sf $rootdir/thirdParty/KronaTools-$VER/scripts/ImportBWA.pl $rootdir/bin/ktImportBWA 
 cd $rootdir/thirdParty
 echo "
 ------------------------------------------------------------------------------
-                        KronaTools-2.6 Installed
+                        KronaTools-$VER Installed
 ------------------------------------------------------------------------------
 "
 }
@@ -1005,20 +1051,21 @@ anacondabin=$rootdir/thirdParty/Anaconda2/bin/
 ln -fs $anacondabin/python $rootdir/bin
 ln -fs $anacondabin/pip $rootdir/bin
 ln -fs $anacondabin/conda $rootdir/bin
-wget -q --spider https://pypi.python.org/
-online=$?
-if [[ $online -eq 0 ]]; then
-	$anacondabin/conda install -y biopython
-	$anacondabin/conda install -yc anaconda mysql-connector-python=2.0.3
-	$anacondabin/pip install qiime xlsx2csv
-	$anacondabin/conda install -y --channel https://conda.anaconda.org/bioconda rgi
-	$anacondabin/conda install -y matplotlib=2.0.0
-        matplotlibrc=`$anacondabin/python -c 'import matplotlib as m; print m.matplotlib_fname()' 2>&1`
-        perl -i.orig -nle 's/(backend\s+:\s+\w+)/\#${1}\nbackend : Agg/; print;' $matplotlibrc
-else
-    $anacondabin/conda install biopython-1.67-np110py27_0.tar.bz2
-    echo "Unable to connect to the internet, not able to install qiime or xlsx2csv"
-fi
+	tar -xvzf Anaconda2Packages.tgz
+    $anacondabin/conda install Anaconda2Packages/biopython-1.68-np111py27_0.tar.bz2 
+	$anacondabin/conda install Anaconda2Packages/blast-2.5.0-boost1.60_1.tar.bz2 
+	$anacondabin/conda install Anaconda2Packages/icu-58.1-0.tar.bz2 
+	$anacondabin/conda install Anaconda2Packages/libgcc-5.2.0-0.tar.bz2 
+	$anacondabin/conda install Anaconda2Packages/mysql-connector-python-2.0.4-py27_0.tar.bz2 
+	$anacondabin/conda install Anaconda2Packages/prodigal-2.60-1.tar.bz2 
+	$anacondabin/conda install Anaconda2Packages/rgi-3.1.1-py27_1.tar.bz2
+	$anacondabin/conda install Anaconda2Packages/subprocess32-3.2.7-py27_0.tar.bz2
+	$anacondabin/conda install Anaconda2Packages/matplotlib-2.0.0-np111py27_0.tar.bz2
+	$anacondabin/pip install --no-index --find-links=./Anaconda2Packages qiime
+	$anacondabin/pip install --no-index --find-links=./Anaconda2Packages xlsx2csv
+	matplotlibrc=`$anacondabin/python -c 'import matplotlib as m; print m.matplotlib_fname()' 2>&1`
+	perl -i.orig -nle 's/(backend\s+:\s+\w+)/\#${1}\nbackend : Agg/; print;' $matplotlibrc
+	rm -r Anaconda2Packages/
 echo "
 ------------------------------------------------------------------------------
                          Python Anaconda2 4.1.1 Installed
@@ -1026,6 +1073,29 @@ echo "
 "
 }
 
+install_Anaconda3()
+{
+echo "------------------------------------------------------------------------------
+                 Installing Python Anaconda3 4.1.1
+------------------------------------------------------------------------------
+"
+if [ ! -f $rootdir/thirdParty/Anaconda3/bin/python3 ]; then
+    bash Anaconda3-4.1.1-Linux-x86_64.sh -b -p $rootdir/thirdParty/Anaconda3/
+fi
+anacondabin=$rootdir/thirdParty/Anaconda3/bin/
+ln -fs $anacondabin/python3 $rootdir/bin
+
+tar -xvzf Anaconda3Packages.tgz
+$anacondabin/pip install --no-index --find-links=./Anaconda3Packages CairoSVG 
+$anacondabin/pip install --no-index --find-links=./Anaconda3Packages pymc3
+ln -fs $anacondabin/cairosvg $rootdir/bin
+rm -r Anaconda3Packages/
+echo "
+------------------------------------------------------------------------------
+                         Python Anaconda3 4.1.1 Installed
+------------------------------------------------------------------------------
+"
+}
 
 checkSystemInstallation()
 {
@@ -1250,6 +1320,13 @@ else
   install_Anaconda2
 fi
 
+if $rootdir/bin/python3 -c 'import sys; sys.exit("Python > 3.0 required.") if sys.version_info < ( 3, 0) else ""' >/dev/null 2>&1
+then
+  $rootdir/bin/python3 -c 'import sys; print( "Python3 version %s.%s found." % (sys.version_info[0],sys.version_info[1]))'
+else
+  install_Anaconda3
+fi
+
 if [[ "$OSTYPE" == "darwin"* ]]
 then
 {
@@ -1304,7 +1381,7 @@ fi
 if ( checkSystemInstallation fastq-dump )
 then
   sratoolkit_VER=`fastq-dump --version | perl -nle 'print $& if m{\d\.\d\.\d}'`;
-  if  ( echo $sratoolkit_VER | awk '{if($1>="2.5.4") exit 0; else exit 1}' )
+  if  ( echo $sratoolkit_VER | awk '{if($1>="2.8.1") exit 0; else exit 1}' )
   then
     echo "sratoolkit $sratoolkit_VER found"
   else
@@ -1332,13 +1409,13 @@ fi
 
 if ( checkSystemInstallation blastn )
 then
-  BLAST_VER=`blastn -version | grep blastn | perl -nle 'print $& if m{\d\.\d\.\d}'`;
-  if ( echo $BLAST_VER | awk '{if($1>="2.4.0") exit 0; else exit 1}' )
-  then
-    echo "BLAST+ $BLAST_VER found"
-  else
-    install_BLAST+
-  fi
+   BLAST_VER=`blastn -version | grep blastn | perl -nle 'print $& if m{\d\.\d\.\d}'`;
+   if ( echo $BLAST_VER | awk '{if($1>="2.4.0") exit 0; else exit 1}' )
+   then
+     echo "BLAST+ $BLAST_VER found"
+   else
+     install_BLAST+
+   fi
 else
   echo "BLAST+ is not found"
   install_BLAST+
@@ -1561,7 +1638,7 @@ fi
 if ( checkSystemInstallation spades.py )
 then
   spades_VER=`spades.py 2>&1 | perl -nle 'print $& if m{\d\.\d\.\d}'`;
-  if ( echo $spades_VER | awk '{if($1>="3.7.1") exit 0; else exit 1}' )
+  if ( echo $spades_VER | awk '{if($1>="3.9.0") exit 0; else exit 1}' )
   then
     echo "SPAdes $spades_VER found"
   else
@@ -1601,6 +1678,34 @@ then
 else
   echo "gottcha.pl  is not found"
   install_gottcha
+fi
+
+if [ -x $rootdir/thirParty/gottcha2/gottcha.py ]
+then
+  gottcha2_VER=`$rootdir/thirParty/gottcha2/gottcha.py -h | grep VERSION |perl -nle 'print $& if m{\d\.\d}'`;
+  if ( echo $gottcha2_VER | awk '{if($1>="2.1") exit 0; else exit 1}' )
+  then
+    echo "GOTTCHA2 $gottcha2_VER is found"
+  else
+    install_gottcha2
+  fi
+else
+  echo "GOTTCHA2 is not found"
+  install_gottcha2
+fi
+
+if [ -x $rootdir/thirParty/pangia/pangia.py ]
+then
+  pangia_VER=`$rootdir/thirParty/pangia/pangia.py -h | grep 'PanGIA Bioinformatics' |perl -nle 'print $& if m{\d\.\d\.\d}'`;
+  if ( echo $pangia_VER | awk '{if($1>="2.2.0") exit 0; else exit 1}' )
+  then
+    echo "PANGIA $pangia_VER is found"
+  else
+    install_pangia
+  fi
+else
+  echo "PANGIA is not found"
+  install_pangia
 fi
 
 if ( checkLocalInstallation metaphlan.py  )
@@ -1748,15 +1853,18 @@ fi
 if [[ "$OSTYPE" == "darwin"* ]]
 then
 	  ln -sf $rootdir/thirdParty/gottcha/bin/splitrim $rootdir/scripts/microbial_profiling/script/splitrim
+      cp -fR $rootdir/start_edge_ui.sh $HOME/Desktop/EDGE_Python_Server_startup
 else
 	  ln -sf $rootdir/thirdParty/gottcha/bin/splitrim $rootdir/scripts/microbial_profiling/script/splitrim
+	  mkdir -p $HOME/Desktop
+      sed -e 's,<edge_home>,'"$rootdir"',g'  $rootdir/scripts/EDGE.desktop > $HOME/Desktop/EDGE.desktop
 fi
 
 cd $rootdir
 
 mkdir -p $rootdir/edge_ui/data
 perl $rootdir/edge_ui/cgi-bin/edge_build_list.pl $rootdir/edge_ui/data/Host/* > $rootdir/edge_ui/data/host_list.json
-perl $rootdir/edge_ui/cgi-bin/edge_build_list.pl -sort_by_size -basename $rootdir/database/NCBI_genomes/  > $rootdir/edge_ui/data/Ref_list.json
+#perl $rootdir/edge_ui/cgi-bin/edge_build_list.pl -sort_by_size -basename $rootdir/database/NCBI_genomes/  > $rootdir/edge_ui/data/Ref_list.json
 
 echo "Setting up EDGE_input"
 if [ -d $rootdir/edge_ui/EDGE_input/ ]
@@ -1778,33 +1886,36 @@ then
 	ln -sf $HOME/EDGE_output $rootdir/edge_ui/EDGE_output
 fi
 
-
-# this may need sudo access
-#matplotlibrc=`python -c 'import matplotlib as m; print m.matplotlib_fname()' 2>&1`
-#if [ -n $matplotlibrc ]
-#then 
- #  echo ""
-   #perl -i.orig -nle 's/(backend\s+:\s+\w+)/\#${1}\nbackend : Agg/; print;' $matplotlibrc
-#fi
-
 if [ -f $HOME/.bashrc ]
 then
 {
   echo "#Added by EDGE pipeline installation" >> $HOME/.bashrc
   echo "export EDGE_HOME=$rootdir" >> $HOME/.bashrc
-  echo "export EDGE_PATH=$rootdir/bin/:$rootdir/bin/Anaconda2/bin/:$rootdir/scripts" >> $HOME/.bashrc
+  echo "export EDGE_PATH=$rootdir/bin/:$rootdir/scripts" >> $HOME/.bashrc
   echo "export PATH=\$EDGE_PATH:\$PATH:" >> $HOME/.bashrc
 }
 else
 {
   echo "#Added by EDGE pipeline installation" >> $HOME/.bash_profile
   echo "export EDGE_HOME=$rootdir" >> $HOME/.bash_profile
-  echo "export EDGE_PATH=$rootdir/bin/:$rootdir/bin/Anaconda2/bin/:$rootdir/scripts" >> $HOME/.bashrc
+  echo "export EDGE_PATH=$rootdir/bin/:$rootdir/scripts" >> $HOME/.bashrc
   echo "export PATH=\$EDGE_PATH:\$PATH:" >> $HOME/.bashrc
 }
 fi
+# Check for existing sys.properties file before regenerating a new one from original
+if [ -e $rootdir/edge_ui/sys.properties ] 
+then
+{
+	cp $rootdir/edge_ui/sys.properties $rootdir/edge_ui/sys.properties.bak
+	cp $rootdir/edge_ui/sys.properties.original $rootdir/edge_ui/sys.properties
+}
+else
+{
+	cp $rootdir/edge_ui/sys.properties.original $rootdir/edge_ui/sys.properties
+}
+fi
 
-sed -i.bak 's,%EDGE_HOME%,'"$rootdir"',g' $rootdir/edge_ui/sys.properties
+sed -i 's,%EDGE_HOME%,'"$rootdir"',g' $rootdir/edge_ui/sys.properties
 sed -i.bak 's,%EDGE_HOME%,'"$rootdir"',g' $rootdir/edge_ui/apache_conf/edge_apache.conf
 sed -i.bak 's,%EDGE_HOME%,'"$rootdir"',g' $rootdir/edge_ui/apache_conf/edge_httpd.conf
 
@@ -1812,7 +1923,7 @@ TOLCPU=`cat /proc/cpuinfo | grep processor | wc -l`;
 if [ $TOLCPU -gt 0 ]
 then
 {
-	sed -i.bak 's,%TOTAL_NUM_CPU%,'"$TOLCPU"',g' $rootdir/edge_ui/sys.properties
+	sed -i 's,%TOTAL_NUM_CPU%,'"$TOLCPU"',g' $rootdir/edge_ui/sys.properties
 	DEFAULT_CPU=`echo -n $((TOLCPU/3))`;
 	if [ $DEFAULT_CPU -lt 1 ]
 	then

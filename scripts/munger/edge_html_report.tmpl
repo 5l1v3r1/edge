@@ -124,6 +124,9 @@
 					</tr>
 				  </thead>
 				  <tbody>
+					<tr><td>Study Title</td><td><TMPL_VAR NAME=SMD_STUDY_TITLE DEFAULT=-></td></tr>
+					<tr><td>Study Type</td><td><TMPL_VAR NAME=SMD_STUDY_TYPE DEFAULT=-></td></tr>
+					<tr><td>Sample Name</td><td><TMPL_VAR NAME=SMD_NAME DEFAULT=-></td></tr>
 					<tr><td>Sample Type</td><td><TMPL_VAR NAME=SMD_TYPE DEFAULT=-></td></tr>
 					<TMPL_IF NAME="OUT_SMD_HOST">
 						<tr><td>Host</td><td><TMPL_VAR NAME=SMD_HOST DEFAULT=-></td></tr>
@@ -137,19 +140,69 @@
 					<TMPL_IF NAME="OUT_SMD_AGE">
 						<tr><td>Age</td><td><TMPL_VAR NAME=SMD_AGE DEFAULT=-></td></tr>
 					</TMPL_IF>
-					<tr><td>Source</td><td><TMPL_VAR NAME=SMD_SOURCE DEFAULT=-></td></tr>
-					<tr><td>Source Detailed Information</td><td><TMPL_VAR NAME=SMD_SOURCE_DETAIL DEFAULT=-></td></tr>
+					<tr><td>Isolation Source</td><td><TMPL_VAR NAME=SMD_SOURCE DEFAULT=-></td></tr>
 					<tr><td>Collection Date</td><td><TMPL_VAR NAME=SMD_COLLECTION_DATE DEFAULT=-></td></tr>
+					<tr><td>Location</td><td><TMPL_VAR NAME=SMD_LOCATION DEFAULT=-></td></tr>
 					<tr><td>City</td><td><TMPL_VAR NAME=SMD_CITY DEFAULT=-></td></tr>
 					<tr><td>State</td><td><TMPL_VAR NAME=SMD_STATE DEFAULT=-></td></tr>
 					<tr><td>Country</td><td><TMPL_VAR NAME=SMD_COUNTRY DEFAULT=-></td></tr>
 					<tr><td>Latitude</td><td><TMPL_VAR NAME=SMD_LAT DEFAULT=-></td></tr>
 					<tr><td>Longitude</td><td><TMPL_VAR NAME=SMD_LNG DEFAULT=-></td></tr>
-					<tr><td>Sequencing Platform</td><td><TMPL_VAR NAME=SMD_SEQ_PLATFORM DEFAULT=-></td></tr>
+					<tr><td>Experiment Title</td><td><TMPL_VAR NAME=SMD_EXP_TITLE DEFAULT=-></td></tr>
+					<tr><td>Sequencing Center</td><td><TMPL_VAR NAME=SMD_SEQ_CENTER DEFAULT=-></td></tr>
 					<tr><td>Sequencer</td><td><TMPL_VAR NAME=SMD_SEQUENCER DEFAULT=-></td></tr>
 					<tr><td>Sequencing Date</td><td><TMPL_VAR NAME=SMD_SEQ_DATE DEFAULT=-></td></tr>
+
+					<TMPL_LOOP NAME=LOOP_SMD_OTHER>
+						<tr><td><TMPL_VAR NAME=SMD_OTHER_F DEFAULT=-></td><td><TMPL_VAR NAME=SMD_OTHER_V DEFAULT=-></td></tr>
+					</TMPL_LOOP>
 				  </tbody>
 			</table>
+			
+			<TMPL_IF NAME="OUT_SMD_TVLS">
+				<div id="metadata-content-report">
+					<ol>
+						<li><span class="li-report-content-title">Recent Travels</span><div class="li-report-content">
+							<table data-role='table' class='output-table output-table-twocol ui-responsive'>
+							  <thead>
+								<tr>
+								  <th data-priority='1'>Dates</th>
+								  <th data-priority='2'>Locations</th>
+								</tr>
+							  </thead>
+							  <tbody>
+							  	<TMPL_LOOP NAME=LOOP_SMD_TVLS>
+								<tr><td><TMPL_VAR NAME=SMD_TVL_DATE DEFAULT=-></td><td><TMPL_VAR NAME=SMD_TVL_LOC DEFAULT=-></td></tr>
+								</TMPL_LOOP>
+							  </tbody>
+							</table>
+						</li>
+					</ol>
+				</div>
+			</TMPL_IF>
+
+			<TMPL_IF NAME="OUT_SMD_SYMS">
+				<div id="metadata-content-report">
+				<ol>
+					<li><span class="li-report-content-title">Symptom List</span><div class="li-report-content">
+						<table data-role='table' class='output-table output-table-twocol ui-responsive'>
+						  <thead>
+							<tr>
+							  <th data-priority='1'>Categories</th>
+							  <th data-priority='2'>Symptoms</th>
+							</tr>
+						  </thead>
+						  <tbody>
+						  	<TMPL_LOOP NAME=LOOP_SMD_SYMS>
+							<tr><td><TMPL_VAR NAME=SMD_SYM_CAT DEFAULT=-></td><td><TMPL_VAR NAME=SMD_SYM DEFAULT=-></td></tr>
+							</TMPL_LOOP>
+						  </tbody>
+						</table>
+					</li>
+				</ol>
+				</div>
+			</TMPL_IF>
+			
 		</div>
 	</TMPL_IF>
 <!-- END sample metatdata -->	
@@ -811,11 +864,15 @@
 							<TMPL_IF NAME="CPTOOL_CPABU_PMD">
 						  	<th data-priority='3'>% Plasmid</th>
 							</TMPL_IF>
-							<TMPL_IF NAME="CPTOOL_GOTTCHA2_LINEAR_LEN">
-							<th data-priority='3'>Linear LEN</th>
-							</TMPL_IF>
-							<TMPL_IF NAME="CPTOOL_GOTTCHA2_LINEAR_DOC">
+							<TMPL_IF NAME="CPTOOL_GOTTCHA2">
+							  <th data-priority='3'>Linear LEN</th>
 						  	<th data-priority='3'>Linear DOC</th>
+							</TMPL_IF>
+							<TMPL_IF NAME="CPTOOL_PANGIA">
+						  	<th data-priority='3'>Linear COV</th>
+						  	<th data-priority='3'>Linear DOC</th>
+						  	<th data-priority='3'>RS Norm Reads</th>
+						  	<th data-priority='3'>Score</th>
 							</TMPL_IF>
 						  	<th data-priority='1'>Abundance</th>
 							</tr>
@@ -827,13 +884,17 @@
 								<td><TMPL_VAR NAME=CPABU_TAX DEFAULT=-></td>
 								<td><TMPL_VAR NAME=CPABU_REA DEFAULT=-></td>
 								<TMPL_IF NAME="CPTOOL_CPABU_PMD">
-								<td><TMPL_VAR NAME=CPABU_PMD DEFAULT=-></td>
+								    <td><TMPL_VAR NAME=CPABU_PMD DEFAULT=-></td>
 								</TMPL_IF>
 								<TMPL_IF NAME="GOTTCHA2_LINEAR_LEN">
-								<td><TMPL_VAR NAME=GOTTCHA2_LINEAR_LEN DEFAULT=-></td>
+								    <td><TMPL_VAR NAME=GOTTCHA2_LINEAR_LEN DEFAULT=-></td>
+								    <td><TMPL_VAR NAME=GOTTCHA2_LINEAR_DOC DEFAULT=-></td>
 								</TMPL_IF>
-								<TMPL_IF NAME="GOTTCHA2_LINEAR_DOC">
-								<td><TMPL_VAR NAME=GOTTCHA2_LINEAR_DOC DEFAULT=-></td>
+								<TMPL_IF NAME="PANGIA_LINEAR_RSNB">
+								    <td><TMPL_VAR NAME=PANGIA_LINEAR_COV  DEFAULT=-></td>
+								    <td><TMPL_VAR NAME=PANGIA_LINEAR_DOC  DEFAULT=-></td>
+								    <td><TMPL_VAR NAME=PANGIA_LINEAR_RSNB DEFAULT=-></td>
+								    <td><TMPL_VAR NAME=PANGIA_LINEAR_SCR  DEFAULT=-></td>
 								</TMPL_IF>
 								<td><TMPL_VAR NAME=CPABU_ABU DEFAULT=-></td>
 							</tr>
@@ -894,7 +955,7 @@
 						  </thead>
 						  <tbody>
 						    <tr><td>Total Contigs</td><td><TMPL_VAR NAME=CCPNTC DEFAULT=-></td><td><TMPL_VAR NAME=CCPNTCB DEFAULT=-></td></tr>
-						    <tr><td>Classified Contigs</td><td><TMPL_VAR NAME=CCPNCC DEFAULT=-></td><td><TMPL_VAR NAME=CCPNCCB DEFAULT=-></td></tr>
+						    <tr><td>Classified Contigs</td><td><TMPL_VAR NAME=CCPNCC DEFAULT=-></td><td><TMPL_VAR NAME=CCPNCCB DEFAULT=-><TMPL_VAR NAME=CCPNCCUB></td></tr>
 						    <tr><td>Unclassified Contigs</td><td><TMPL_VAR NAME=CCPNUC DEFAULT=-></td><td><TMPL_VAR NAME=CCPNUCB DEFAULT=-></td></tr>
 						  </tbody>
 						</table>
@@ -1090,7 +1151,7 @@
 						</table>
 						<TMPL_IF NAME=SGRARHIT>
 								<span class="li-report-content-title">Antibiotics Resistance Gene Markers</span>
-									<table id="sgrar-table" data-role='table' data-mode='columntoggle' class='output-table ui-responsive'>
+								<table id="sgrar-table" data-role='table' data-mode='columntoggle' class='output-table ui-responsive'>
 									<thead>
 										<tr>
 										<th data-priority='1'>Family</th>

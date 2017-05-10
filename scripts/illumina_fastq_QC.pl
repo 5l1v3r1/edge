@@ -44,7 +44,7 @@ use lib "$Bin/../lib";
 use Parallel::ForkManager;
 use String::Approx;
 
-my $version=1.35;
+my $version=1.36;
 my $debug=0;
 
 $ENV{PATH}="$Bin/../bin:$ENV{PATH}";
@@ -70,9 +70,12 @@ print <<"END";
       
             -3end         <INT> Cut # bp from 3 end before quality trimming/filtering 
 
-            -adapter      <bool> Filter reads with illumina adapter/primers (default: no)
+            -adapter      <bool> Trim reads with illumina adapter/primers (default: no)
                           -rate   <FLOAT> Mismatch ratio of adapters' length (default: 0.2, allow 20% mismatches)
                           -polyA  <bool>  Trim poly A ( > 15 ) 
+                          -keepshort  turn on this will keep short portion of reads instead of keep longer portion of reads
+                          -keep5end   keep 5' end (conflict with -keepshort and -keep3end)
+                          -keep3end   keep 3' end (conflict with -keepshort and -keep5end)
             					
             -artifactFile  <File>    additional artifact (adapters/primers/contaminations) reference file in fasta format 
 
@@ -120,6 +123,8 @@ print <<"END";
  
             -trim_only    <bool> No quality report. Output trimmed reads only.
 
+            -replace_to_N_q  <INT>  For NextSeq data, to replace base G to N when below this quality score (default:0, off)
+
             -debug        <bool> keep intermediate files
 END
 exit(1);
@@ -139,6 +144,8 @@ my $ascii;
 my $mode="BWA_plus";
 my $N_num_cutoff=2;
 my $replace_N;
+my $replace_to_N_q=0;
+my $is_NextSeq=0;
 my $out_offset=33;
 my $low_complexity_cutoff_ratio=0.85;
 my $subfile_size=1000000;
@@ -160,6 +167,9 @@ my $qc_only=0;
 my $trim_only=0;
 my $stringent_cutoff=0;
 my $filter_adapter=0;
+my $keep_short_after_adapter_trim=0;
+my $keep_5end_after_adapter_trim=0;
+my $keep_3end_after_adapter_trim=0;
 my $trim_polyA;
 my $filter_phiX=0;
 my $filterAdapterMismatchRate=0.2;
@@ -199,9 +209,13 @@ GetOptions("q=i"          => \$opt_q,
            'substitute'   => \$replace_N,
            'qc_only'      => \$qc_only,
            'trim_only'    => \$trim_only,
+           'replace_to_N_q=i' => \$replace_to_N_q,
            'subset=i'     => \$subsample_num,
            'debug'        => \$debug,
            'adapter'      => \$filter_adapter,
+           'keepshort'    => \$keep_short_after_adapter_trim,
+           'keep5end'     => \$keep_5end_after_adapter_trim,
+           'keep3end'     => \$keep_3end_after_adapter_trim,
            'polyA'        => \$trim_polyA,
            'phiX'         => \$filter_phiX,
            'rate=f'       => \$filterAdapterMismatchRate,
@@ -392,9 +406,12 @@ open(my $fastqCount_fh, ">$fastq_count") or die "Cannot write $fastq_count\n";
      if (! $ascii){$ascii = &checkQualityFormat($reads1_file)}
 
      # check NextSeq platform
-     if( &is_NextSeq($reads1_file) and $opt_q < 16){
-	$opt_q = 16;
-	warn "The input looks like NextSeq data and the quality level (-q) is adjusted to 16 for trimming.\n";
+     $is_NextSeq = ( &is_NextSeq($reads1_file) )?1:0;
+     if( $is_NextSeq ){
+        if ($orig_opt_q < 20){
+	  $opt_q = 20;
+	  warn "The input looks like NextSeq data and the quality level (-q) is adjusted to $opt_q for trimming.\n";
+        }
      }else{ $opt_q = $orig_opt_q;}
 
     #split
@@ -1985,6 +2002,9 @@ sub get_base_and_quality_info
          $seq{qual}->{$pos}->{$q_digit}++;
          $total_q += $q_digit; 
          my $base=uc(substr($s,$pos-$start_pos,1));
+         if ($q_digit < $replace_to_N_q and $is_NextSeq and $base eq "G"){
+             substr($new_s,$pos-$start_pos,1,"N");
+         }
          $a_Base++ if ($base =~ /A/);  
          $t_Base++ if ($base =~ /T/);  
          $c_Base++ if ($base =~ /C/);  
@@ -2203,11 +2223,12 @@ sub checkQualityFormat {
     my $l;
     my $number;
     my $offset=33;
+    my $line_num=0;
     # go thorugh the file
     my $first_line=<$fh>;
     if ($first_line !~ /^@/) {$offset=-1; return $offset;}
     OUTER:while(<$fh>){
-      
+      $line_num++;
       # if it is the line before the quality line
       if($_ =~ /^\+/){
     
@@ -2218,10 +2239,15 @@ sub checkQualityFormat {
         $number = ord($line[$i]); # get the number represented by the ascii char
       
         # check if it is sanger or illumina/solexa, based on the ASCII image at http://en.wikipedia.org/wiki/FASTQ_format#Encoding
-        if($number > 74){ # if solexa/illumina
+        if($number > 104){
+	  $offset=33;  # pacbio CCS reads
+          last OUTER;
+        }
+        elsif($number > 74){ # if solexa/illumina
           $offset=64;
           #die "This file is solexa/illumina format\n"; # print result to terminal and die
-          last OUTER; 
+          # read a few more quality line to make sure the offset 
+          last OUTER if ($line_num > 100);
         }elsif($number < 59){ # if sanger
           $offset=33;
           #die "This file is sanger format\n"; # print result to terminal and die
@@ -2305,7 +2331,7 @@ sub split_fastq {
 
    }
    my $average_len = $total_seq_length/$seq_num;
-   if ( $average_len < $opt_min_L) { print "ERROR: The input ($file_name) average length $average_len < minimum cutoff length(opt_min_L) $opt_min_L\n."; }
+   if ( $average_len < $opt_min_L) { print "ERROR: The input ($file_name) average length $average_len < minimum cutoff length(opt_min_L) $opt_min_L.\n"; }
    close ($fh)  or die( "Cannot close file : $!");
    close (OUTFILE) or die( "Cannot close file : $!") if (! eof OUTFILE);
    return ($seq_num,$total_seq_length,@subfiles);
@@ -2350,15 +2376,33 @@ sub filter_adapter
             $adapter_name=$key;
             my $index=$match[0][0];
             my $match_len=$match[0][1];
-            if ( int($s_len/2)-$index < ($match_len/2) )  # longer left
-            {
-                substr($s,$index,$s_len-$index,"");
-                $pos3=length($s)+1;
-            }
-            else  #longer right
-            {
-                substr($s,0,$index+$match_len,"");
-                $pos5=$index+$match_len;
+            if ($keep_5end_after_adapter_trim){
+                    substr($s,$index,$s_len-$index,"");
+                    $pos3=length($s)+1;
+            }elsif($keep_3end_after_adapter_trim){
+                    substr($s,0,$index+$match_len,"");
+                    $pos5=$index+$match_len;
+            }else{
+                if ( int($s_len/2)-$index < ($match_len/2) )  # longer left
+                {
+                    if ($keep_short_after_adapter_trim){
+                        substr($s,0,$index+$match_len,"");
+                        $pos5=$index+$match_len;
+                    }else{
+                        substr($s,$index,$s_len-$index,"");
+                        $pos3=length($s)+1;
+                    }
+                }
+                else  #longer right
+                {
+                    if ($keep_short_after_adapter_trim){
+                        substr($s,$index,$s_len-$index,"");
+                        $pos3=length($s)+1;
+                    }else{
+                        substr($s,0,$index+$match_len,"");
+                        $pos5=$index+$match_len;
+                    }
+                }
             }
             # same adapter sencond match
             my $match = String::Approx::amatch($adapter, ["i", "S ${mismatchRate}% I 0 D 0"], $s);

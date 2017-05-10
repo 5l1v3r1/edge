@@ -30,24 +30,35 @@ $( document ).ready(function()
 
 	var page = $( this );
 	var allMainPage = $(".edge-main-page");
-	
+	if (typeof localStorage === 'object') {
+	try {
+		localStorage.setItem('localStorage', 1);
+		localStorage.removeItem('localStorage');
+	} catch (e) {
+		Storage.prototype._setItem = Storage.prototype.setItem;
+		Storage.prototype.setItem = function() {};
+		alert('EDGE cannot be loaded. Your web browser does not support storing settings locally. In Safari, the most common cause of this is using "Private Browsing Mode".');
+		document.write('<style type="text/undefined">');
+	}
+	}
 	if (navigator.onLine){
 		// This key is for LANL only. You need to edit the key=
 		var googleMapApiURL = "https://maps.googleapis.com/maps/api/js?key=AIzaSyDhL0G5RZJDOoxgK3gtXmEhnD_aZxy0yxw&libraries=places";
 		$.getScript(googleMapApiURL)
 		.done(function( script, textStatus ) {
 			$.getScript("javascript/jquery.geocomplete.js")
-				.done(function( script, textStatus ) {
-					loadGeoCompleteAction();
-				})
-				.fail(function( jqxhr, settings, exception ) {
-					console.log( jqxhr, settings, exception );
-			});
-		})
-		.fail(function( jqxhr, settings, exception ) {
-			console.log( jqxhr, settings, exception );
-		});
- 	}
+ 				.done(function( script, textStatus ) {
+ 					loadGeoCompleteAction();
+ 				})
+ 				.fail(function( jqxhr, settings, exception ) {
+ 					console.log( jqxhr, settings, exception );
+ 			});
+ 		})
+ 		.fail(function( jqxhr, settings, exception ) {
+ 			console.log( jqxhr, settings, exception );
+ 		});
+  	}
+	
 	//init page
 	//$("#edge-content-upload-li").hide();
 	$("#edge-phylo-ref-select-ref-div").hide();
@@ -58,6 +69,7 @@ $( document ).ready(function()
 		replaceUMurl();
 		$('#edge-project-page-li').text('Public Project List');
 		check_login();
+		updateProject();
 	}
 	
 	$('#edge-user-btn').on("click",function(){
@@ -67,7 +79,7 @@ $( document ).ready(function()
 	edge_ui_init();
 	sync_input(); //sync input with switch
 	integrityCheck();
-	updateProject(focusProjName);
+	//updateProject(focusProjName);
 	
 	allMainPage.hide();
 	$( "#edge-content-home" ).fadeIn();
@@ -78,23 +90,13 @@ $( document ).ready(function()
 		page.find( ".edge-navmenu-panel:not(.edge-panel-page-nav)" ).panel( "close" );
 	});
 	$( "a[href=#edge-content-pipeline]" ).on( "click", function(){
-		allMainPage.hide();
-		pipeline="EDGE";
-		toggle_input_fields("enable");
-		$('#edge-form-reconfig-rerun').closest('.ui-btn').hide();
-		$('#edge-form-submit').closest('.ui-btn').show();
-		$('#edge-form-reset').closest('.ui-btn').show();
-		$("#edge-submit-info" ).children().remove();
-		$("#edge-file-input-block").children().show();
-		$(".btnAdd-edge-input").children().show();
-		$(".edge-main-pipeline-input").show();
-		$(".edge-qiime-pipeline-input").hide();
-		$("#edge-content-pipeline" ).fadeIn("fast", function(){
-			if (umSystemStatus && (localStorage.sid == "" || typeof localStorage.sid === "undefined") ){
-				showWarning("Please login to run EDGE.");
-			}
-		});
-		page.find( ".edge-navmenu-panel:not(.edge-panel-page-nav)" ).panel( "close" );
+		$.get("edgesite.installation.done", function() {
+			setRunEdge();
+		})
+		  .fail(function() {
+			allMainPage.hide();
+			$( "#edgesite-content" ).fadeIn("fast");
+		  });
 	});
 
 	$( "a[href=#edge-qiime-pipeline]" ).on( "click", function(){
@@ -177,7 +179,7 @@ $( document ).ready(function()
 				error: function(XMLHttpRequest, textStatus, errorThrown) { 
 					$('.no-show-logout').hide();
 					$('#edge-projet-list-li').hide();
-					$(".edge-user-btn").hide();
+					$("#edge-user-btn").hide();
 					$( "a[href=#edge-content-pipeline]" ).hide();
 					$( "a[href=#edge-content-uploadfile]" ).hide();
 					$( "a[href=#edge-qiime-pipeline]" ).hide();
@@ -193,7 +195,7 @@ $( document ).ready(function()
 						if (data.error.toLowerCase().indexOf("administrator") >= 0){
 							$('.no-show-logout').hide();
 							$('#edge-projet-list-li').hide();
-							$(".edge-user-btn").hide();
+							$("#edge-user-btn").hide();
 							$( "a[href=#edge-content-pipeline]" ).hide();
 							$( "a[href=#edge-content-uploadfile]" ).hide();
 							$( "a[href=#edge-qiime-pipeline]" ).hide();
@@ -202,11 +204,12 @@ $( document ).ready(function()
 							// no configuration to use User management
 							localStorage.umStatus = false;
 							$('.no-show-logout').show();
-							$(".edge-user-btn").hide();
+							$("#edge-user-btn").hide();
 							$("#action-unshare-btn").parent().hide();
 							$("#action-share-btn").parent().hide();
 							$("#action-publish-btn").parent().hide();
 							uploadFiles(inputFileDir);
+							updateProject();
 						}
           			} // if
           			else { // user_management is live
@@ -215,7 +218,7 @@ $( document ).ready(function()
 						localStorage.umURL = data.url;
 						localStorage.sid = data.sid;
 						umSystemURL = data.url;
-						$(".edge-user-btn").show();;
+						$("#edge-user-btn").show();;
 						$(".no-show-logout").hide();
 						$('.no-show-login').show();
 						$('#edge-project-page-li').text('Public Project List');
@@ -251,7 +254,7 @@ $( document ).ready(function()
 			FileTree("/" + localStorage.udir + "/");
 			uploadFiles("/" + localStorage.udir + "/");
 
-			$('#edge-user-btn').removeClass("ui-btn-icon-notext").addClass("ui-btn-icon-left edge-user-btn-login");
+			//$('#edge-user-btn').removeClass("ui-btn-icon-notext").addClass("ui-btn-icon-left edge-user-btn-login");
 			$('#edge-user-btn').html(localStorage.fnname);
 			$('#edge-project-page-li').text('My Project List');
 			$('#edge-user-btn').unbind("click").on("click",function(){
@@ -404,7 +407,7 @@ $( document ).ready(function()
 					FileTree("/" + data.UserDir + "/");
 					uploadFiles("/" + data.UserDir + "/");
 
-					$('#edge-user-btn').removeClass("ui-btn-icon-notext").addClass("ui-btn-icon-left edge-user-btn-login");
+					//$('#edge-user-btn').removeClass("ui-btn-icon-notext").addClass("ui-btn-icon-left edge-user-btn-login");
 					$('#edge-user-btn').html(localStorage.fnname);
 					$('#edge-project-page-li').text('My Project List');
 					$('#edge-content-home').find(".error").remove();
@@ -533,8 +536,8 @@ $( document ).ready(function()
 				// remove session, update button
 				$('.no-show-login').fadeIn("fast");
 		    	$(".no-show-logout").hide();
-				$('#edge-user-btn').addClass("ui-btn-icon-notext").removeClass("edge-user-btn-login");
-				$('#edge-user-btn').html("User");
+				//$('#edge-user-btn').addClass("ui-btn-icon-notext").removeClass("edge-user-btn-login");
+				$('#edge-user-btn').html("Login");
 				$('#edge-project-page-li').text('Public Project List');
 				setTimeout( function() {updateProject(focusProjName);},5);
 		    	$( "#edge_integrity_dialog_header" ).text("Message");
@@ -570,6 +573,14 @@ $( document ).ready(function()
 		theme:'tooltipster-light',
 		maxWidth: '480',
 		interactive: true,
+	});
+	$('.my-tooltip-btn').not(".ui-alt-icon").hide();
+	$('.my-tooltip-btn').not(".ui-alt-icon").parent('label,legend').hover(function(){
+		$(this).find(".tooltip").addClass("ui-alt-icon");
+		$(this).find(".tooltip").show();
+		},function(){
+		$(this).find(".tooltip").removeClass("ui-alt-icon");
+		$(this).find(".tooltip").hide();
 	});
 	// update qc tooltip content
 	$('#qc-q-tooltip').tooltipster(
@@ -661,12 +672,14 @@ $( document ).ready(function()
 			$( "#edge-sra-input-block" ).fadeIn('fast');
 			$( "#edge-file-input-block" ).hide();
 			$( ".btnAdd-edge-input" ).hide();
+			$( "#edge-sample-metadata" ).hide();
 		}
 		else{
 			$( "#edge-sra-input-block" ).fadeOut('fast');
 			$( "#edge-file-input-block" ).fadeIn('fast');
 			$( ".btnAdd-edge-input" ).fadeIn('fast');
 			$( "#edge-sra-acc" ).val('');
+			$( "#edge-sample-metadata" ).show();
 		}
 	});
 	//
@@ -836,9 +849,12 @@ $( document ).ready(function()
         	     //alert('maximum fields reached')
         	}                        
     	});
-  	$('.btnAdd-edge-phylo-ref-file, .btnAdd-edge-qiime-barcode-fq-file, .btnAdd-edge-ref-file').click( function(e) {
+	$("#edge-taxa-custom-db-tool").after($(".btnAdd-edge-taxa-custom-db"));
+	$(".btnAdd-edge-taxa-custom-db").parent().css("display","inline-flex");
+  	$('.btnAdd-edge-phylo-ref-file, .btnAdd-edge-qiime-barcode-fq-file, .btnAdd-edge-ref-file, .btnAdd-edge-taxa-custom-db').click( function(e) {
 		e.preventDefault();
-		var blockClass, blockIDprefix, inputID, label, selectClass;
+		var blockClass, blockIDprefix, inputID, label, selectClass, toolname;
+		var limit=5;
 		if ($(this).hasClass("btnAdd-edge-phylo-ref-file")){
 			selectClass = ".btnAdd-edge-phylo-ref-file";
 			blockClass = ".edge-phylo-ref-file-block";
@@ -857,23 +873,40 @@ $( document ).ready(function()
 			blockIDprefix = "edge-ref-file-block";
 			inputID = "edge-ref-file";
 			label = "Reference Genome";
-                }
+		}else if ($(this).hasClass("btnAdd-edge-taxa-custom-db")){
+			selectClass = ".btnAdd-edge-taxa-custom-db";
+			blockClass = ".edge-taxa-custom-db-block";
+			blockIDprefix = "edge-taxa-custom-db-block";
+			toolname=$("#edge-taxa-custom-db-tool").val();
+			if ($("#"+"custom-"+toolname.toLowerCase()).length){
+				showWarning("The " + toolname + " input field exists");	
+				return;
+			}
+			limit = 10;
+		}
 		// how many "duplicatable" input fields we currently have
 		var num = $(blockClass).length;
+		var Elem = $('#' + blockIDprefix + num );
 		// the numeric ID of the new input field being added	
 		var newNum	= new Number(num + 1);	
 		var newElem = $('#' + blockIDprefix + num ).clone().attr('id', blockIDprefix + newNum);
-		newElem.find('label:first').attr( 'for', inputID + "-" + newNum ).text(label + '(' + newNum + ')');
-		newElem.find('input:first').attr( 'id', inputID + "-" + newNum ).attr('name', inputID);
+		if ($(this).hasClass("btnAdd-edge-taxa-custom-db")){
+			Elem.show();
+			Elem.find('label:first').text(toolname).attr( 'for',"custom-"+toolname.toLowerCase()).css("text-indent","1em");
+			Elem.find('input:first').attr( 'id',"custom-"+toolname.toLowerCase()).attr('name',"custom-"+toolname.toLowerCase());
+		} else {
+			newElem.find('label:first').attr( 'for', inputID + "-" + newNum ).text(label + '(' + newNum + ')');
+			newElem.find('input:first').attr( 'id', inputID + "-" + newNum ).attr('name', inputID);
+		}
 		newElem.find(selectClass).remove();
 		// insert newElem
 		$('#' + blockIDprefix + num).after(newElem);
-			// bind the selector 
-			newElem.find(".edge-file-selector").on( "click", function() {
+		// bind the selector 
+		newElem.find(".edge-file-selector").on( "click", function() {
 			inputFileID = $(this).prevAll().children().prop("id");
 		});
 		// business rule: limit the number of fields to 5
-		if (newNum == 5) {
+		if (newNum == limit) {
 			$(selectClass).addClass('ui-disabled');
 			//alert('maximum fields reached')
 		}   
@@ -945,14 +978,11 @@ $( document ).ready(function()
 		if(action == "metadata-delete") {
 			actionContent = "Do you want to <span id='action_type'>DELETE</span> project "+focusProjRealName+" sample metadata?";
 		}
-		if(action == "metadata-bsvedelete") {
-			actionContent = "Do you want to <span id='action_type'>DELETE</span> project "+focusProjRealName+" sample metadata from BSVE?";
-		}
 		if(action == "metadata-bsveadd") {
-			actionContent = "Do you want to <span id='action_type'>SHARE</span> project "+focusProjRealName+" sample metadata with BSVE?";
+			actionContent = "Do you want to <span id='action_type'>SHARE</span> project "+focusProjRealName+" sample metadata/pathogens with BSVE?";
 		}
 		if(action == "metadata-bsveupdate") {
-			actionContent = "Do you want to <span id='action_type'>UPDATE</span> project "+focusProjRealName+" sample metadata in BSVE?";
+			actionContent = "Do you want to <span id='action_type'>UPDATE</span> project "+focusProjRealName+" sample metadata/pathogens in BSVE?";
 		}
 		//END sample metadata
 
@@ -1112,20 +1142,21 @@ $( document ).ready(function()
 						var edge_path = loc.substring(0,loc.lastIndexOf('/'));
 						window.open(edge_path + data.PATH);
 					}
+					if( action == 'rename'){
+						$( "#edge-output-projname").text(rename_project);
+					}
 				}
-				else if( action == 'rename'){
-					$( "#edge_integrity_dialog_header" ).text("Message");
-					showWarning(data.INFO);
-				} 
 				else{
 					showWarning(data.INFO);
 				}
-				if (action != 'compare'){
+				if (action != 'compare' && !request){
 					updateProject(focusProjName);
 				}
-				
+				if ( $( "#edge-content-report" ).is(":visible")  && !request && action != 'delete'){
+					 updateReport(focusProjName);
+				}
 				//reload project list if project list page is loaded
-				if( $("#edge-project-page").is(":visible") ){
+				if( $("#edge-project-page").is(":visible") && !request){
 					updateProjectsPage( $("#edge-project-page-li").data( "mode") );
 				}
 			},
@@ -1174,93 +1205,104 @@ $( document ).ready(function()
 	//update report
 	var testKronaAnimation;
 	function updateReport(pname) {
-		$.ajax({
-			url: "./cgi-bin/edge_report.cgi",
-			type: "POST",
-			dataType: "html",
-			cache: false,
-			data: { "proj" : pname, "sid":localStorage.sid , 'umSystem':umSystemStatus, 'protocol':location.protocol},
-			beforeSend: function(){
-				$.mobile.loading( "show", {
-					text: "Load...",
-					textVisible: 1,
-					html: ""
-				});
-			},
-			complete: function() {
-				$.mobile.loading( "hide" );
-			},
-			success: function(data){
-				//console.log("got response");
-				allMainPage.hide();
-				$( "#edge-content-report" ).html(data);
-				$( "#edge-content-report div[data-role='popup']" ).popup();
-				$( "#edge-content-report > div[data-role='collapsible'] table " ).table();
-				$( "#edge-content-report > div[data-role='collapsible']" ).collapsible();
-				$( "#edge-content-report fieldset[data-role='controlgroup']" ).controlgroup();
-				$( "#edge-content-report" ).show();
-				$( "#edge-content-report" ).find("img").lazyLoadXT();
-				$( "#edge-content-report" ).find("iframe").lazyLoadXT();
-				$( "#edge-content-report" ).enhanceWithin();
-
-				//for progress bar in report
-				if( $("#edge-output-projstatus").text() == "Running" ){
-					var progress_bar = $( '<div id="progressbar-block"><input type="range" id="progressbar" data-highlight="true" min="0" max="100" value="0"><div class="overlay"></div><span id="progressbar-val">Loading...</span></div>' )
-					progress_bar.insertAfter( $( "#edge-output-projname" ) );
-					$( '#progressbar' ).slider({
-						create: function( event, ui ) {
-						    $(this).parent().parent().css('position','relative');
-						    $(this).parent().find('input').hide();
-						    $(this).parent().find('input').css('margin-left','-9999px'); // Fix for some FF versions
-						    $(this).parent().find('.ui-slider-track').css('margin','0 15px 15px 0px');
-						    $(this).parent().find('.ui-slider-track').css('height','1.5em');
-						    $(this).parent().find('.ui-slider-handle').hide();
-						}
-					}).slider("refresh");
-				}
-
-				if (umSystemStatus && (localStorage.sid == "" || typeof localStorage.sid === "undefined")){
-					$('#get_download_link').hide();
-				}
-
-				if ($( ".krona_plot" ).length){
-                                        if(testKronaAnimation){clearInterval(testKronaAnimation);};
-					testKronaAnimation = setInterval(function () {
-						$( "#edge-content-report iframe" ).each(function(){
-                                			var kf = this;
-                                			var h = $("div[title='Help']", $(kf).contents());
-                                			if ( $(h).size() ) {
-                                        			$(h).parent().hide();
-                                			}
-                        			});
-                			}, 100);
-        			}else if(testKronaAnimation){
-			
-					clearInterval(testKronaAnimation);
-				}
-				
-				$.getScript( "./javascript/edge-output.js" )
-					.done(function( script, textStatus ) {
-					//	console.log( "edge-output.js loaded: " + textStatus );
-						var projName = $('#edge-output-projname').html();
-						$('#edge-project-header').find('h2').html(projName);
-					})
-					.fail(function( jqxhr, settings, exception ) {
-						console.log( jqxhr, settings, exception );
+		sessionStorage.focusProjName = pname;
+		if ( $('#edge-project-title').attr("data-pid") == pname && focusProjStatus != "running" && $('#edge-output-projstatus').text() != "Running"){
+			allMainPage.hide();
+			$( "#edge-content-report" ).show();
+		}
+		else{
+			$.ajax({
+				url: "./cgi-bin/edge_report.cgi",
+				type: "POST",
+				dataType: "html",
+				cache: false,
+				data: { "proj" : pname, "sid":localStorage.sid , 'umSystem':umSystemStatus, 'protocol':location.protocol},
+				beforeSend: function(){
+					$.mobile.loading( "show", {
+						text: "Load...",
+						textVisible: 1,
+						html: ""
 					});
-				var pstatus = $( "#edge-content-report" ).find("p:first").text().match( /Project Status: (.+)/m );
+				},
+				complete: function() {
+					$.mobile.loading( "hide" );
+				},
+				success: function(data){
+					//console.log("got response");
+					allMainPage.hide();
+					$( "#edge-content-report" ).html(data);
+					$( "#edge-content-report div[data-role='popup']" ).popup();
+					$( "#edge-content-report > div[data-role='collapsible'] table " ).table();
+					$( "#edge-content-report > div[data-role='collapsible']" ).collapsible();
+					$( "#edge-content-report fieldset[data-role='controlgroup']" ).controlgroup();
+					$( "#edge-content-report" ).show();
+					$( "#edge-content-report" ).find("img").lazyLoadXT();
+					$( "#edge-content-report" ).find("iframe").lazyLoadXT();
+					$( "#edge-content-report" ).enhanceWithin();
+					//for progress bar in report
+					if( $("#edge-output-projstatus").text() == "Running" ){
+						var progress_bar = $( '<div id="progressbar-block"><input type="range" id="progressbar" data-highlight="true" min="0" max="100" value="0"><div class="overlay"></div><span id="progressbar-val">Loading...</span></div>' )
+						progress_bar.insertAfter( $( "#edge-output-projname" ) );
+						$( '#progressbar' ).slider({
+							create: function( event, ui ) {
+							    $(this).parent().parent().css('position','relative');
+							    $(this).parent().find('input').hide();
+							    $(this).parent().find('input').css('margin-left','-9999px'); // Fix for some FF versions
+							    $(this).parent().find('.ui-slider-track').css('margin','0 15px 15px 0px');
+							    $(this).parent().find('.ui-slider-track').css('height','1.5em');
+							    $(this).parent().find('.ui-slider-handle').hide();
+							}
+						}).slider("refresh");
+					}
 
-				if( pstatus[1] != "Complete" && pstatus[1] != "Archived"){
-					$( "#edge-content-report div.ui-grid-a" ).hide();
-					$( "#edge-content-report div.ui-grid-c" ).hide();
+					if (umSystemStatus && (localStorage.sid == "" || typeof localStorage.sid === "undefined")){
+						$('#get_download_link').hide();
+					}
+
+					if ($( ".krona_plot" ).length){
+                	                        if(testKronaAnimation){clearInterval(testKronaAnimation);};
+						testKronaAnimation = setInterval(function () {
+							$( "#edge-content-report iframe" ).each(function(){
+                	                			var kf = this;
+                	                			var h = $("div[title='Help']", $(kf).contents());
+                	                			if ( $(h).size() ) {
+                	                        			$(h).parent().hide();
+                	                			}
+                	        			});
+                				}, 100);
+        				}else if(testKronaAnimation){
+				
+						clearInterval(testKronaAnimation);
+					}
+					
+					$.getScript( "./javascript/edge-output.js" )
+						.done(function( script, textStatus ) {
+						//	console.log( "edge-output.js loaded: " + textStatus );
+							var projName = $('#edge-output-projname').html();
+							if(!projName){projName = $('#edge-content-report > h2').first().html();}
+							var sep = (umSystemStatus)? ' /':'';
+							$('#edge-project-title').html( projName+sep);
+							$('#edge-project-title').attr("data-pid", pname);
+							$('#edge-project-title').off("click");
+							$('#edge-project-title').on("click", function(){ updateReport(pname); });
+						})
+						.fail(function( jqxhr, settings, exception ) {
+							console.log( jqxhr, settings, exception );
+						});
+					var pstatus = $( "#edge-content-report" ).find("p:first").text().match( /Project Status: (.+)/m );
+
+					if( pstatus[1] != "Complete" && pstatus[1] != "Archived"){
+						$( "#edge-content-report div.ui-grid-a" ).hide();
+						$( "#edge-content-report div.ui-grid-c" ).hide();
+					}
+					//console.log($( "#edge-get-contigs-by-taxa" ));
+				},
+				error: function(data){
+					$.mobile.loading( "hide" );
+					showWarning("Failed to retrieve the report. Please REFRESH the page and try again.");
 				}
-				//console.log($( "#edge-get-contigs-by-taxa" ));
-			},
-			error: function(data){
-				$.mobile.loading( "hide" );
-				showWarning("Failed to retrieve the report. Please REFRESH the page and try again.");
-			}
-		});
+			});
+		}
 	}
 
 	//submit
@@ -1281,6 +1323,11 @@ $( document ).ready(function()
 			toggle_input_fields( "enable" ); //enable input fileds before submitting
 			projID = focusProjInfo.NAME;
 			var addRecParam = $.param({ 'type': "reconfig", "rec_projcode": focusProjInfo.PROJCODE, "rec_projname": projID })
+		}
+		
+		//PanGIA modification
+		if( $("#edge-pangia-sw") ){
+			//addParam += "&edge-taxa-enabled-tools=pangia"
 		}
 		
 		$.ajax({
@@ -1628,8 +1675,12 @@ $( document ).ready(function()
 				$( ".edge-project-page-link").unbind('click').on('click', function(e){
 					e.preventDefault();
 					var pname = $(this).attr("data-pid");
-					updateReport(pname);
-					updateProject(pname);
+					if (e.altKey){
+                                                window.open(location.href.split('#')[0] +"/?proj="+pname);
+                                        }else{
+						updateReport(pname);
+						updateProject(pname);
+					}
 				});
 				$(".tooltip").tooltipster({
 					theme:'tooltipster-light',
@@ -1642,7 +1693,7 @@ $( document ).ready(function()
 					var actionContent = "Do you want to <span id='action_type'>"+action.toUpperCase()+"</span> projects " ;
 					//sample metadata
 					if(action === "metadata-bsveadd") {
-						actionContent = "Do you want to <span id='action_type'>SHARE</span> projects' metadata with BSVE?" ;
+						actionContent = "Do you want to <span id='action_type'>SHARE</span> projects' metadata/pathogens with BSVE?" ;
 					}
 					//END sample metadata
 					if ( action === "0" ){
@@ -1665,7 +1716,7 @@ $( document ).ready(function()
 						var projids=[];
 						$('[name="edge-projpage-ckb"]:checked').each(function( event ) {
 							projnames.push("<li>"+$(this).closest('td').next('td').find('.edge-project-page-link').text()+"</li>");
-							if ( action === 'compare'){
+							if ( action === 'compare' || action === 'metadata-export'){
 								projids.push($(this).val());
 							}else{
 								projids.push($(this).closest('td').next('td').find('.edge-project-page-link').attr('data-pid'));
@@ -1679,7 +1730,7 @@ $( document ).ready(function()
 							setUserList(action,focusProjCodes);
 						}
 						$("#edge_confirm_dialog a:contains('Confirm')").unbind('click').on("click",function(){
-							if ( action === "compare" ){
+							if ( action === "compare" || action === 'metadata-export'){
 								actionConfirm(action,focusProjCodes);
 							}else{
 								var actionRequest=[];
@@ -1696,25 +1747,13 @@ $( document ).ready(function()
 									$( "#edge_integrity_dialog_header" ).text("Message");
 									$( "#edge_integrity_dialog" ).popup("reposition",{positionTo: 'window'});
 									//sample metadata
-									//if(action === "metadata-bsveadd") {
-									//	showWarning('Metadata of projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been shared with BSVE.');
-									if (action === "delete"){
-										showWarning('Projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been ' + action +'d');
-									} else if (action === "restart") {
-										showWarning('Projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been ' + action +'ed');
-									} else if (action === "rerun") {
-										showWarning('Projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been ' + 'restarted');
-									} else if (action === "interrupt") {
-										showWarning('Projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been ' + action +'ed');
-									} else if (action === "empty") {
-										showWarning('Projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been ' + 'emptied and restarted');
-									} else if (action === "share") {
-										showWarning('Projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been ' + action +'d');
-									} else if (action === "publish") {
-										showWarning('Projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been ' + action +'ed');
+									if(action === "metadata-bsveadd") {
+										showWarning('Metadata/pathogens of projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been shared with BSVE.');
 									} else {
-										showWarning(action + 'was applied to' + '<ul>' + projnames.join('\n') + '</ul>');
+									//END sample metadata
+										showWarning( 'The ' + action + ' action on project(s) is      complete.' + '<ul>' + projnames.join('\n') + '</ul>');
 									}
+									updateProjectsPage( $("#edge-project-page-li").data( "mode") );
 									//showWarning('Projects' + '<ul>' + projnames.join('\n') + '</ul>'+ 'have been ' + action +'d');
 								});
 							}
@@ -1764,9 +1803,10 @@ $( document ).ready(function()
 
 				var ProjDataTable = $('#edge-project-page-table').DataTable({
 					"columnDefs": [ {"targets": 0, "orderable": false}],
-					"lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
 					"order": [],
+					"lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
 					"pageLength": 25,
+					"deferRender": true,
 					"responsive": true,
 				});
 				$('#edge-projpage-ckall').on('click',function(){
@@ -1804,6 +1844,7 @@ $( document ).ready(function()
 					$("#edge-content-upload-li").hide();
 				}else{
 					$("#edge-content-upload-li").show();
+					$("#edge-upload-expiration-days").html(obj.INFO.UPLOADEXPIRE);
 				}
 				( obj.INFO.ARCHIVE == "true" )?	$("#action-archive-btn").show():$("#action-archive-btn").hide();
 				
@@ -1863,13 +1904,13 @@ $( document ).ready(function()
 	};
 
 	function updateProject(pname) {
-		focusProjName = pname;
+		focusProjName = sessionStorage.focusProjName;
 		$.ajax({
 			url: './cgi-bin/edge_info.cgi',
 			type: "POST",
 			dataType: "json",
 			cache: false,
-			data: { "proj" : pname, 'umSystem':umSystemStatus, 'protocol':location.protocol, 'sid':localStorage.sid },
+			data: { "proj" : focusProjName, 'umSystem':umSystemStatus, 'protocol':location.protocol, 'sid':localStorage.sid },
 			complete: function(data){
 				/*
 				console.log("finished_proj="+finished_proj);
@@ -1881,8 +1922,12 @@ $( document ).ready(function()
 				$( "#edge-project-list-ul > li" ).off('click').on("click", function(e){
 					e.preventDefault();
 					var pname = $(this).children("a").attr("data-pid");
-					updateReport(pname);
-					updateProject(pname);
+					if (e.altKey){
+ 						window.open(location.href.split('#')[0] +"/?proj="+pname);
+ 					}else{
+						updateReport(pname);
+						updateProject(pname);
+					}
 				});
 				clearInterval(updateProjInterval);
 				updateProjInterval = setInterval(function(){ updateProject(pname) }, interval);
@@ -1892,7 +1937,7 @@ $( document ).ready(function()
 				focusProjInfo   = obj.INFO;
 				focusProjName   = obj.INFO.NAME;
 				focusProjRealName   = obj.INFO.PROJNAME || obj.INFO.NAME;
-				focusProjConfigFile = "EDGE_output/" + (obj.INFO.PROJCODE || obj.INFO.PROJNAME) + "/config.json";
+				focusProjConfigFile = '.' + obj.INFO.PROJCONFIG;
 				focusProjLogFile    = obj.INFO.PROJLOG;
 				focusProjStatus = obj.INFO.STATUS;
 				focusProjTime   = obj.INFO.TIME;
@@ -1931,28 +1976,35 @@ $( document ).ready(function()
 				focusProjShowMeta = obj.INFO.SHOWMETA;
 				focusProjIsOwner = obj.INFO.ISOWNER;
 				focusProjHasMeta = obj.INFO.HASMETA;
+				focusProjShareBSVE = obj.INFO.SHAREBSVE;
 				focusProjMetaBSVE = obj.INFO.METABSVE;
 
+				if(focusProjIsOwner || userType == 'admin') {
+					$("#project-actions").show();
+				} else {
+					$("#project-actions").hide();
+				}
+
 				if(focusProjShowMeta && (focusProjIsOwner || userType == 'admin')) {
-					$("#action-metadata-bsve-submit-btn").parent().parent().show();
+					$("#metadata-actions").show();
 					if(focusProjHasMeta) {
 							$("#action-metadata-delete-btn").show();
-							$("#edge-pg-metadata-edit").attr('data','edit').text("Edit");
-							$("#action-metadata-bsve-submit-btn").show();
+							$("#metadata-edit").attr('data','edit').text("Edit");
 					} else {
-							$("#edge-pg-metadata-edit").attr('data','edit').text("Add");
+							$("#metadata-edit").attr('data','edit').text("Add");
 							$("#action-metadata-delete-btn").hide();
-							$("#action-metadata-bsve-delete-btn").hide();
-							$("#action-metadata-bsve-submit-btn").hide();
 					}
-					(focusProjMetaBSVE)?
-							$("#action-metadata-bsve-delete-btn").show():
-							$("#action-metadata-bsve-delete-btn").hide();
-					(focusProjMetaBSVE)?
-							$("#action-metadata-bsve-submit-btn").attr('data','metadata-bsveupdate').text("Update in BSVE"):
-							$("#action-metadata-bsve-submit-btn").attr('data','metadata-bsveadd').text("Share with BSVE");
 				} else {
-					$("#action-metadata-bsve-submit-btn").parent().parent().hide();
+					$("#metadata-actions").hide();
+				}
+
+				if(focusProjShareBSVE && (focusProjIsOwner || userType == 'admin')) {
+					$("#bsve-actions").show();
+					(focusProjMetaBSVE)?
+						$("#action-metadata-bsve-submit-btn").attr('data','metadata-bsveupdate').text("Update metadata/pathogens"):
+						$("#action-metadata-bsve-submit-btn").attr('data','metadata-bsveadd').text("Share metadata/pathogens");
+				} else {
+					$("#bsve-actions").hide();
 				}
 				//END sample metadata
 
@@ -1962,7 +2014,7 @@ $( document ).ready(function()
 		
 					var listIdOrder = Object.keys(obj.LIST);
 					listIdOrder.sort(
- 						firstBy(function(a,b){ return obj.LIST[b].TIME < obj.LIST[a].TIME ? -1 : obj.LIST[b].TIME > obj.LIST[a].TIME; })
+						firstBy(function(a,b){ return new Date(obj.LIST[b].TIME.replace(/-/g,"/")) - new Date(obj.LIST[a].TIME.replace(/-/g,"/"))})
  						.thenBy(function(a,b){ return obj.LIST[b].NAME < obj.LIST[a].NAME ? -1 : obj.LIST[b].NAME > obj.LIST[a].NAME; })
  					);
 					if (projListNumShow == 0){ projListNumShow = 9999999;}
@@ -1980,7 +2032,7 @@ $( document ).ready(function()
 							var bgClass = "";
 							var displayList = "hiddenProjList"; 
 							var desc = proj_list_obj.DESC || "No description";
-							desc = desc + " ("+pstatus+")";
+							desc = desc + " ("+pstatus+", alt-click to open in a new tab)";
 									
 							switch ( pstatus ) {
 								case "finished":
@@ -2036,6 +2088,10 @@ $( document ).ready(function()
 						}
 					}
 				});
+
+				//if ( !$("#edge-content-report").is(':visible') ) {
+				//	$('#edge-project-title').html("");
+				//}
 
 				// progress info
 				if(! $.isEmptyObject(obj.PROG))
@@ -2126,7 +2182,7 @@ $( document ).ready(function()
 						$("#progressbar-val").css("width",prog_pct+"%").text( obj.INFO.STATUS + " (" + prog_pct+"% done)" );
 					}
 
-					if( obj.INFO.STATUS == "finished" && $('#edge-output-status').text() && $('#edge-output-status').text() != "Complete" ){
+					if( obj.INFO.STATUS == "finished" && $('#edge-output-projstatus').text() && $('#edge-output-projstatus').text() != "Complete" ){
 						updateReport( obj.INFO.NAME );
 					}
 				}
@@ -2266,137 +2322,42 @@ $( document ).ready(function()
     		}, 300, 'linear');
 		return false;
 	});
-
-//////////////////////////////////////
-//sample metadata
-	checkSampleMetadata();
 	
-	$( "#human-gender" ).fadeOut('fast');
-	$( "#human-age" ).fadeOut('fast');
+	//init Host list
+	$.getJSON( "data/host_list.json", function( data ) {
+                var genomeIds = Object.keys(data);
+                genomeIds.sort();
 
-	$( '#pg-cb-gender' ).on("change",function(){
-		if($(this).is(':checked')){
-			$( "#human-gender" ).fadeIn('fast');
-		} else {
-			$( "#human-gender" ).fadeOut('fast');
-		}
-	});
-	$( '#pg-cb-age' ).on("change",function(){
-		if($(this).is(':checked')){
-			$( "#human-age" ).fadeIn('fast');
-		} else {
-			$( "#human-age" ).fadeOut('fast');
-		}
-	});
+                $.each( genomeIds, function( key, val ) {
+                        var name=val;
+                        name = name.replace(/_/g, " ");
+                        $("#edge-hostrm-file-fromlist").append($("<option value="+val+">"+name+"</option>"));
+                });
+                $("#edge-hostrm-file-fromlist").selectmenu( "refresh" );
+        });
+        
+	function setRunEdge() {
+		allMainPage.hide();
+		pipeline="EDGE";
+		toggle_input_fields("enable");
+		$('#edge-form-reconfig-rerun').closest('.ui-btn').hide();
+		$('#edge-form-submit').closest('.ui-btn').show();
+		$('#edge-form-reset').closest('.ui-btn').show();
+		$("#edge-submit-info" ).children().remove();
+		$("#edge-file-input-block").children().show();
+		$(".btnAdd-edge-input").children().show();
+		$(".edge-main-pipeline-input").show();
+		$(".edge-qiime-pipeline-input").hide();
+		$("#edge-content-pipeline" ).fadeIn("fast", function(){
+			if (umSystemStatus && (localStorage.sid == "" || typeof localStorage.sid === "undefined") ){
+				showWarning("Please login to run EDGE.");
+			}
+		});
+		page.find( ".edge-navmenu-panel:not(.edge-panel-page-nav)" ).panel( "close" );
 
-
-	//sample type
-	if($( '#edge-sample-type').val() == "human") {
-			$( "#edge-pg-human" ).fadeIn('fast');
-			$( "#edge-pg-host-associated" ).fadeIn('fast');
-			$( "#edge-sample-source-options-host" ).fadeIn('fast');
-			$( "#edge-sample-source-options-nonhost" ).fadeOut('fast');
+		//reset metadata form
+		resetMetadata();
 	}
-	if($( '#edge-sample-type' ).val() == "animal") {
-			$( "#edge-pg-human" ).fadeOut('fast');
-			$( "#edge-pg-host-associated" ).fadeIn('fast');
-			$( "#edge-sample-source-options-host" ).fadeIn('fast');
-			$( "#edge-sample-source-options-nonhost" ).fadeOut('fast');
-	}
-	if($( '#edge-sample-type' ).val() == "environmental") {
-			$( "#edge-pg-human" ).fadeOut('fast');
-			$( "#edge-pg-host-associated" ).fadeOut('fast');
-			$( "#edge-sample-source-options-host" ).fadeOut('fast');
-			$( "#edge-sample-source-options-nonhost" ).fadeIn('fast');
-	}
-
-	$( '#edge-sample-type' ).on("change",function(){
-		if ( $(this).val() == 'human' ){
-			$( "#edge-pg-human" ).fadeIn('fast');
-			$( "#edge-pg-host-associated" ).fadeIn('fast');
-			$('#edge-pg-host').val("human");
-			$( "#edge-sample-source-options-host" ).fadeIn('fast');
-			$( "#edge-sample-source-options-nonhost" ).fadeOut('fast');
-
-		}
-		else if ($(this).val() == 'environmental' ){
-			$( "#edge-pg-human" ).fadeOut('fast');
-			$( "#edge-pg-host-associated" ).fadeOut('fast');
-			$( "#edge-sample-source-options-host" ).fadeOut('fast');
-			$( "#edge-sample-source-options-nonhost" ).fadeIn('fast');
-			
-		}
-		else if ($(this).val() == 'animal' ){
-			$( "#edge-pg-human" ).fadeOut('fast');
-			$( "#edge-pg-host-associated" ).fadeIn('fast');
-			$('#edge-pg-host').val("");
-			$( "#edge-sample-source-options-host" ).fadeIn('fast');
-			$( "#edge-sample-source-options-nonhost" ).fadeOut('fast');
-		}
-	});
-
-	//seq platform
-	if($( '#edge-pg-seq-platform' ).val() =='Illumina') {
-			$( "#edge-pg-sequencer-options-ill" ).fadeIn('fast');
-			$( "#edge-pg-sequencer-options-ion" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-nan" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-pac" ).fadeOut('fast');
-
-	}
-	if($( '#edge-pg-seq-platform' ).val() =='IonTorrent') {
-			$( "#edge-pg-sequencer-options-ill" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-ion" ).fadeIn('fast');
-			$( "#edge-pg-sequencer-options-nan" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-pac" ).fadeOut('fast');
-
-	}
-	if($( '#edge-pg-seq-platform' ).val() =='Nanopore') {
-			$( "#edge-pg-sequencer-options-ill" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-ion" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-nan" ).fadeIn('fast');
-			$( "#edge-pg-sequencer-options-pac" ).fadeOut('fast');
-
-	}
-	if($( '#edge-pg-seq-platform' ).val() =='PacBio') {
-			$( "#edge-pg-sequencer-options-ill" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-ion" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-nan" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-pac" ).fadeIn('fast');
-
-	}
-
-	$( '#edge-pg-seq-platform' ).on("change",function(){
-		if ( $(this).val() == 'Illumina' ){
-			$( "#edge-pg-sequencer-options-ill" ).fadeIn('fast');
-			$( "#edge-pg-sequencer-options-ion" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-nan" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-pac" ).fadeOut('fast');
-		}
-		else if ($(this).val() == 'IonTorrent' ){
-			$( "#edge-pg-sequencer-options-ill" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-ion" ).fadeIn('fast');
-			$( "#edge-pg-sequencer-options-nan" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-pac" ).fadeOut('fast');
-		}
-		else if ($(this).val() == 'Nanopore' ){
-			$( "#edge-pg-sequencer-options-ill" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-ion" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-nan" ).fadeIn('fast');
-			$( "#edge-pg-sequencer-options-pac" ).fadeOut('fast');
-		}
-		else if ($(this).val() == 'PacBio' ){
-			$( "#edge-pg-sequencer-options-ill" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-ion" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-nan" ).fadeOut('fast');
-			$( "#edge-pg-sequencer-options-pac" ).fadeIn('fast');
-		}
-	});
-
-	//update sample metadata
-	$("#edge-pg-metadata-edit").on("click", function(){
-		page.find( ".edge-action-panel" ).panel( "close" );
-		editSampleMetadata();
-	});
 
 	//reconfig input
 	function reconfig(){
@@ -2407,7 +2368,7 @@ $( document ).ready(function()
 		$.getJSON( focusProjConfigFile, function( data ) {
 			//loading pipeline
 			if( data['pipeline'] == "EDGE" ){
-				$( "a[href=#edge-content-pipeline]" ).click();
+				setRunEdge();
 				toggle_input_fields( "reconfig" );
 				$('#edge-form-reconfig-rerun').closest('.ui-btn').show();
 				$('#edge-form-submit').closest('.ui-btn').hide();
@@ -2451,29 +2412,29 @@ $( document ).ready(function()
 						$("input:radio[name="+key+"]").trigger("change");
 					}
 				}
-				else if( $('.btnAdd-'+key).length ){	
-					var arr = value.split(",");
+				else if( $('.btnAdd-'+key).length ){
+					var arr = value.split("\u0000");
 					$.each( arr, function(i, val) {
 						id=i+1
 						if( $('#'+key+"-"+id).length == 0 ){
 							$('.btnAdd-'+key).click()
 						}
-						$('#'+key+"-"+id).val(value)
+						$('#'+key+"-"+id).val(val)
 					});
 				}
 				else if( $('#'+key).prop('type') == "select-multiple" ){
-					if( key == "edge-ref-file-fromlist" || key == "edge-phylo-ref-select" ){
-						var arr = value.split("\u0000");
-						$.each( arr, function(i, val) {
-							$('#'+key)
-							  .append($("<option></option>")
-							  .attr("value", val)
-							  .text(val));
-						});
+					var arr = value.split("\u0000");
+					if(arr.length > $('#'+key).children('option').length){
+						if( key == "edge-ref-file-fromlist" || key == "edge-phylo-ref-select" ){
+							$.each( arr, function(i, val) {
+								$('#'+key)
+							  	.append($("<option></option>")
+							  	.attr("value", val)
+							  	.text(val));
+							});
+						}
 					}
-					else{
-						var arr = value.split(",");
-					}
+					
 					$('#'+key).val(arr)
 					$('#'+key).selectmenu("refresh");
 
@@ -2493,30 +2454,508 @@ $( document ).ready(function()
 			});	
 		});
 	}
+	
+//////////////////////////////////////
+//sample metadata
+	//checkbox
+	$( '#metadata-host-gender-cb' ).on("change",function(){
+		if($(this).is(':checked')){
+			$( "#human-gender" ).fadeIn('fast');
+		} else {
+			$( "#human-gender" ).fadeOut('fast');
+		}
+	});
+	$( '#metadata-host-age-cb' ).on("change",function(){
+		if($(this).is(':checked')){
+			$( "#human-age" ).fadeIn('fast');
+		} else {
+			$( "#human-age" ).fadeOut('fast');
+		}
+	});
 
-	function checkSampleMetadata(){
+	//add a travel
+   	$( '#add-travel' ).on("click",function(e){
+        	e.preventDefault();
+        	travels ++;
+		var dom = '<div id="metadata-travel-'+travels+'">';
+		dom += '<div class="ui-field-contain">';
+		dom += '<label for="remove-travel">Travel #: </label>';
+		dom += '<a href="#" class="ui-btn ui-btn-icon-left ui-icon-delete ui-mini" id="remove-travel">Remove this travel</a>';
+		dom += '</div>';
+								
+		dom += '<div class="ui-field-contain">';
+		dom += '<label>From</label>';
+		dom += '<input data-role="date" type="text" data-mini="true" data-clear-btn="false" name="metadata-travel-date-f" id="metadata-travel-date-f-'+travels+'" maxlength="30" class="metadata-travel-date">';
+		dom += '</div>';
+		dom += '<div class="ui-field-contain">';
+		dom += '<label>To</label>';
+		dom += '<input data-role="date" type="text" data-mini="true" data-clear-btn="false" name="metadata-travel-date-t" id="metadata-travel-date-t-'+travels+'" maxlength="30" class="metadata-travel-date">';
+		dom += '</div>';
+		dom += '<div id="metadata-travel-geo-'+travels+'">';
+		dom += '<div class="ui-field-contain">';
+		dom += '<label>Location</label>';
+		dom += '<input name="metadata-travel-location" id="geocomplete-travel-'+travels+'" type="text" placeholder="Type in an address to let system auto fill the location fields below"/>';
+		dom += '</div>';
+		dom += '<div class="ui-field-contain">';
+		dom += '<label></label>';
+		dom += '<input name="locality" id="metadata-travel-city-'+travels+'" data-mini="true" data-clear-btn="false" type="text" placeholder="City">';
+		dom += '</div>';
+		dom += '<div class="ui-field-contain">';
+		dom += '<label></label>';
+		dom += '<input name="administrative_area_level_1"  id="metadata-travel-state-'+travels+'" data-mini="true" data-clear-btn="false" type="text" placeholder="State">';
+		dom += '</div>';
+		dom += '<div class="ui-field-contain">';
+		dom += '<label></label>';
+		dom += '<input name="country" id="metadata-travel-country-'+travels+'" data-mini="true" data-clear-btn="false" type="text" placeholder="Country">';
+		dom += '</div>';
+		dom += '<div class="ui-field-contain">';
+		dom += '<label></label>';
+		dom += '<input name="lat" id="metadata-travel-lat-'+travels+'" data-mini="true" data-clear-btn="false" type="text" placeholder="Latitude">';
+		dom += '</div>';
+		dom += '<div class="ui-field-contain">';
+		dom += '<label></label>';
+		dom += '<input name="lng" id="metadata-travel-lng-'+travels+'" data-mini="true" data-clear-btn="false" type="text" placeholder="Longitude">';
+		dom += '</div>';
+		dom += '</div>';
+		dom += '<br><br>';
+		dom += '</div>';
+		$("#metadata-travels" ).append(dom).trigger("create");
+	});
+
+	//remove a travel
+	$( '#metadata-travels' ).on("click","#remove-travel",function(){
+		$(this).parent('div').parent('div').remove();
+	});
+
+	function loadGeoCompleteAction(){
+		//travel geo location, limit to 10
+		var geoLimit=10;
+		var travelID;
+		for (var i=1;i<=geoLimit;i++) {
+			var travelID = '#geocomplete-travel-' + i;
+			$('#metadata-travels').on('click',travelID ,function() {
+				var metaTravelID= "#metadata-travel-geo-" + this.id.slice(-1);
+				$(this).geocomplete({
+		  			details: "#metadata-travels " + metaTravelID
+				});
+			});
+		}
+		//geo location
+		$('#metadata-sample-geo').on('click','#metadata-sample-geocomplete',function() {
+			$(this).geocomplete({
+		  		details: "#metadata-sample-geo"
+			});
+		});
+		//geo location
+		$('#edgesite-geo').on('click','#edgesite-geocomplete',function() {
+			$(this).geocomplete({
+		  		details: "#edgesite-geo"
+			});
+		});
+	}
+
+	$('#metadata-travels').on('focus','.metadata-travel-date',function() {
+		$(this).datepicker({
+		      changeMonth: true,
+		      changeYear: true,
+		      dateFormat: 'yy-mm-dd'
+	    	});
+	});
+
+	//sample type change
+	$('input[name= metadata-sample-type]' ).on("change",function(){
+		$( "#metadata-isolation-source" ).val("");  
+		if ( $(this).val() == 'human' ){
+			$( "#metadata-host-human" ).fadeIn('fast');
+			$( "#metadata-host-block" ).fadeIn('fast');
+			$( "#metadata-host-h" ).fadeIn('fast');
+			$( "#metadata-host-a" ).fadeOut('fast');
+			setSymptoms();
+
+		}
+		else if ($(this).val() == 'environmental' ){
+			$( "#metadata-host-human" ).fadeOut('fast');
+			$( "#metadata-host-block" ).fadeOut('fast');
+			
+		}
+		else if ($(this).val() == 'animal' ){
+			$( "#metadata-host-human" ).fadeOut('fast');
+			$( "#metadata-host-block" ).fadeIn('fast');
+			$( "#metadata-host-a" ).fadeIn('fast');
+			$( "#metadata-host-h" ).fadeOut('fast');
+		}
+	});	
+
+	//update sample metadata
+	$("#metadata-edit").on("click", function(){
+		page.find( ".edge-action-panel" ).panel( "close" );
+		editSampleMetadata();
+	});
+
+
+	//study-title auto complete
+	$(".dblist-study ul").on('click', 'li', function() {
+		$( "#metadata-study-title" ).val( $( this ).text() );  
+		$("#metadata-study-title-list li" ).addClass('ui-screen-hidden');
+		$('#study-title-div').css('display', 'none');
+	});
+
+	$("#metadata-study-title").focus(function(){
+		setStudyList();
+		$('#study-title-div').css('display', 'inline');
+	});
+
+	$("#metadata-study-title").focusout(function(){
+		if ($("#metadata-study-title-list li:hover").length == 0) {
+			$("#metadata-study-title-list li" ).addClass('ui-screen-hidden');
+			$('#study-title-div').css('display', 'none');
+		}
+	});
+
+	//study-type auto complete
+	$(".dblist-study-type ul").on('click', 'li', function() {
+		$( "#metadata-study-type" ).val( $( this ).text() );  
+		$("#metadata-study-type-list li" ).addClass('ui-screen-hidden');
+		$('#study-type-div').css('display', 'none');
+	});
+
+	$("#metadata-study-type").focus(function(){
+		setStudyTypeList();
+		$('#study-type-div').css('display', 'inline');
+	});
+
+	$("#metadata-study-type").focusout(function(){
+		if ($("#metadata-study-type-list li:hover").length == 0) {
+			$("#metadata-study-type-list li" ).addClass('ui-screen-hidden');
+			$('#study-type-div').css('display', 'none');
+		}
+	});
+
+	//pg host auto complete
+	$(".dblist-pg-host ul").on('click', 'li', function() {
+		$( "#metadata-host" ).val( $( this ).text() );  
+		$("#metadata-host-list li" ).addClass('ui-screen-hidden');
+		$('#host-list-div').css('display', 'none');
+	});
+
+	$("#metadata-host").focus(function(){
+		setPgHostList();
+		$('#host-list-div').css('display', 'inline');
+	});
+
+	$("#metadata-host").focusout(function(){
+		if ($("#metadata-host-list li:hover").length == 0) {
+			$("#metadata-host-list li" ).addClass('ui-screen-hidden');
+			$('#host-list-div').css('display', 'none');
+		}
+	});
+
+	//isolation source auto complete
+	$(".dblist-sample-source ul").on('click', 'li', function() {
+		$( "#metadata-isolation-source" ).val( $( this ).text() );  
+		$("#metadata-isolation-source-list li" ).addClass('ui-screen-hidden');
+		$('#isolation-source-list-div').css('display', 'none');	
+	});
+
+	$("#metadata-isolation-source").focus(function(){
+		setIsolationSourceList($('input[name= metadata-sample-type]:checked').val());
+		$('#isolation-source-list-div').css('display', 'inline');		
+	});
+
+	$("#metadata-isolation-source").focusout(function(){
+		if ($("#metadata-isolation-source-list li:hover").length == 0) {
+			$("#metadata-isolation-source-list li" ).addClass('ui-screen-hidden');
+			$('#isolation-source-list-div').css('display', 'none');	
+		}
+	});
+
+	//sequencing center auto complete
+	$(".dblist-seq-center ul").on('click', 'li', function() {
+		$( "#metadata-seq-center" ).val( $( this ).text() );  
+		$("#edge-seq-center-list li" ).addClass('ui-screen-hidden');
+		$('#seq-center-list-div').css('display', 'none');
+	});
+
+	$( "#metadata-seq-center" ).focus(function(){
+		setSeqCenterList();
+		$('#seq-center-list-div').css('display', 'inline');
+	});
+
+	$( "#metadata-seq-center" ).focusout(function(){
+		if ($("#edge-seq-center-list li:hover").length == 0) {
+			$("#edge-seq-center-list li" ).addClass('ui-screen-hidden');
+			$('#seq-center-list-div').css('display', 'none');
+		}
+	});
+
+	//sequencer auto complete
+	$(".dblist-sequencer ul").on('click', 'li', function() {
+		$( "#metadata-sequencer" ).val( $( this ).text() );  
+		$("#edge-sequencer-list li" ).addClass('ui-screen-hidden');
+		$('#sequencer-list-div').css('display', 'none');
+	});
+
+	$( "#metadata-sequencer" ).focus(function(){
+		setSequencerList();
+		$('#sequencer-list-div').css('display', 'inline');
+	});
+
+	$( "#metadata-sequencer" ).focusout(function(){
+		if ($("#edge-sequencer-list li:hover").length == 0) {
+			$("#edge-sequencer-list li" ).addClass('ui-screen-hidden');
+			$('#sequencer-list-div').css('display', 'none');
+		}
+	});
+
+//edgesite
+	//enable metadata change
+	$('input[name= edgesite-enable-metadata]' ).on("change",function(){
+		if ( $(this).val() == 'yes' ){
+			$( '#edgesite-share-metadata1').prop('checked',true);
+			$( '#edgesite-share-metadata2').prop('checked',false);
+			$('[name="edgesite-share-metadata"]').checkboxradio("refresh");
+			$( "#edgesite-share-metadata-div" ).fadeIn('fast');
+			$( "#edgesite-autoshare-metadata-div" ).fadeIn('fast');
+		}
+		else {
+			$( "#edgesite-share-metadata-div" ).fadeOut('fast');
+			$( "#edgesite-autoshare-metadata-div" ).fadeOut('fast');
+		}
+	});
+	//share metadata change
+	$('input[name= edgesite-share-metadata]' ).on("change",function(){
+		if ( $(this).val() == 'yes' ){
+			$( "#edgesite-autoshare-metadata-div" ).fadeIn('fast');
+		}
+		else {
+			$( "#edgesite-autoshare-metadata-div" ).fadeOut('fast');
+		}
+	});		
+
+	//form reset
+	$( "#edgesite-form-reset" ).on( "click", function() {
+		$( "#edgesite-form" )[0].reset();
+		$( "#edgesite-share-metadata-div" ).fadeIn('fast');
+		$( "#edgesite-autoshare-metadata-div" ).fadeIn('fast');
+	});
+
+	//form submit
+	$( "#edgesite-form-submit" ).on( "click", function() {
+		$.ajax({
+			url: "./cgi-bin/edge_sample_metadata.cgi",
+			type: "POST",
+			dataType: "json",
+			cache: false,
+			//data: $( "#edge-run-pipeline-form" ).serialize(),
+			data: ( $("#edgesite-form").serialize() +'&'+ $.param({'sid':localStorage.sid, 'userType':userType,'action':'edgesite-save' })),
+			beforeSend: function(){
+				$.mobile.loading( "show", {
+					text: "submitting...",
+					textVisible: 1,
+					html: ""
+				});
+			},
+			complete: function(data) {
+				$.mobile.loading( "hide" );
+			},
+			success: function(data){
+		    		$( "#edge_integrity_dialog_header" ).text("Message");
+				$( "#edge_integrity_dialog_content" ).text("Your EdgeSite was set up successfully!");
+				setTimeout( function() { $( "#edge_integrity_dialog" ).popup('open'); }, 300 );
+
+				if( data.SUBMISSION_STATUS == "success" ){
+					$( "a[href=#edge-content-pipeline]" ).focus();
+					setRunEdge();
+				}
+				else{
+					// display error information
+					$.mobile.loading( "hide" );
+					showWarning(data.ERROR);
+				}
+
+			},
+			error: function(data){
+				$.mobile.loading( "hide" );
+				showWarning("Failed to submit edgesite form."+data);
+			}
+		});
+	});
+
+
+	//datepicker
+	$('.metadata-input-date').datepicker({
+		changeMonth: true,
+		changeYear: true,
+	        dateFormat: 'yy-mm-dd'
+	});
+
+//functions
+	function resetMetadata() {
+		checkSampleMetadata();
+		//set sample type to default: human
+		resetSampleType(); 
+
+		//reset text inputs
+		$('.metadata-input').val("");
+	}
+
+	//set sample type to default: human
+	function resetSampleType() {
+		//set sample type to default: human
+		$( '#metadata-sample-type1').prop('checked',true);
+		$( '#metadata-sample-type2').prop('checked',false);
+		$( '#metadata-sample-type3').prop('checked',false);
+		$('[name="metadata-sample-type"]').checkboxradio("refresh");
+		$( "#metadata-host-human" ).fadeIn('fast');
+		$( "#metadata-host-block" ).fadeIn('fast');
+		$( "#metadata-host-h" ).fadeIn('fast');
+		$( "#metadata-host-a" ).fadeOut('fast');
+
+		//reset checkbox
+		$('input[type=checkbox]').attr('checked',false);
+		$( '#metadata-host-gender-cb' ).checkboxradio("refresh");
+		$( '#metadata-host-age-cb' ).checkboxradio("refresh");
+		$( "#human-gender" ).fadeOut('fast');
+		$( "#human-age" ).fadeOut('fast');
+
+		//host condition
+		$( '#metadata-host-condition1').prop('checked',false);
+		$( '#metadata-host-condition2').prop('checked',false);
+		$( '#metadata-host-condition3').prop('checked',true);
+		$('[name="metadata-host-condition"]').checkboxradio("refresh");		
+
+		//reset travels
+		travels = 0;
+		$("#metadata-travels" ).empty();
+
+		setSymptoms();
+	}
+
+	function setStudyList(){
     		$.ajax({
     			type: "POST",
-			url: "./cgi-bin/edge_sample_metadata.cgi", 
+			url: "./cgi-bin/edge_db.cgi", 
         		cache: false,
-        		dataType: "json",
-        		data: {"action": 'check' },
-				error: function(XMLHttpRequest, textStatus, errorThrown) { 
-         			console.log("ERROR");
-        		}, // error 
+        		dataType: "html",
+			data: {"action":"study-list" },
         		// script call was successful 
-        		// data contains the JSON values returned by the cgi script 
         		success: function(data){
-				//console.log("sample metadata is " + data.metadata);
-				if (data.metadata == "on") { // sample_metadata_bsve is on
-					//console.log("is on");
-					$( "#edge-sample-metadata" ).fadeIn('fast');
-					localStorage.metadata = true;
-          			} else { 
-					//console.log("is off");
-					$( "#edge-sample-metadata" ).fadeOut('fast');
-					localStorage.metadata = false;
-				}	
+				$("#metadata-study-title-list" ).empty();
+				var its = data.split("\n");
+				for (var i=0;i<its.length;i++) {
+					$("#metadata-study-title-list" ).append($("<li>"+its[i]+"</it>"));
+				}
+				$("#metadata-study-title-list li" ).addClass('ui-screen-hidden');
+       			} // success
+    		});
+	}
+
+	function setStudyTypeList(){
+    		$.ajax({
+    			type: "POST",
+			url: "./cgi-bin/edge_db.cgi", 
+        		cache: false,
+        		dataType: "html",
+			data: {"action":"study-type-list" },
+        		// script call was successful 
+        		success: function(data){
+				$("#metadata-study-type-list" ).empty();
+				var its = data.split("\n");
+				for (var i=0;i<its.length;i++) {
+					$("#metadata-study-type-list" ).append($("<li>"+its[i]+"</it>"));
+				}
+				$("#metadata-study-type-list li" ).addClass('ui-screen-hidden');
+       			} // success
+    		});
+	}
+
+	function setPgHostList(){
+    		$.ajax({
+    			type: "POST",
+			url: "./cgi-bin/edge_db.cgi", 
+        		cache: false,
+        		dataType: "html",
+			data: {"action":"pg-host-list" },
+        		// script call was successful 
+        		success: function(data){
+				$("#metadata-host-list" ).empty();
+				var its = data.split("\n");
+				for (var i=0;i<its.length;i++) {
+					$("#metadata-host-list" ).append($("<li>"+its[i]+"</it>"));
+				}
+				$("#metadata-host-list li" ).addClass('ui-screen-hidden');
+       			} // success
+    		});
+	}
+
+	function setIsolationSourceList(type){
+    		$.ajax({
+    			type: "POST",
+			url: "./cgi-bin/edge_db.cgi", 
+        		cache: false,
+        		dataType: "html",
+			data: {"action":"isolation-source-list", "sample-type":type },
+        		// script call was successful 
+        		success: function(data){
+				$("#metadata-isolation-source-list" ).empty();
+				var its = data.split("\n");
+				for (var i=0;i<its.length;i++) {
+					$("#metadata-isolation-source-list" ).append($("<li>"+its[i]+"</it>"));
+				}
+				$("#metadata-isolation-source-list li" ).addClass('ui-screen-hidden');
+       			} // success
+    		});
+	}
+
+	function setSeqCenterList(){
+    		$.ajax({
+    			type: "POST",
+			url: "./cgi-bin/edge_db.cgi", 
+        		cache: false,
+        		dataType: "html",
+			data: {"action":"seq-center-list" },
+        		// script call was successful 
+        		success: function(data){
+				$("#edge-seq-center-list" ).empty();
+				var its = data.split("\n");
+				for (var i=0;i<its.length;i++) {
+					$("#edge-seq-center-list" ).append($("<li>"+its[i]+"</it>"));
+				}
+				$("#edge-seq-center-list li" ).addClass('ui-screen-hidden');
+       			} // success
+    		});
+	}
+
+	function setSequencerList(){
+    		$.ajax({
+    			type: "POST",
+			url: "./cgi-bin/edge_db.cgi", 
+        		cache: false,
+        		dataType: "html",
+			data: {"action":"sequencer-list" },
+        		// script call was successful 
+        		success: function(data){
+				$("#edge-sequencer-list" ).empty();
+				var its = data.split("\n");
+				for (var i=0;i<its.length;i++) {
+					$("#edge-sequencer-list" ).append($("<li>"+its[i]+"</it>"));
+				}
+				$("#edge-sequencer-list li" ).addClass('ui-screen-hidden');
+       			} // success
+    		});
+	}
+
+	function setSymptoms(){
+    		$.ajax({
+    			type: "POST",
+			url: "./cgi-bin/edge_db.cgi", 
+        		cache: false,
+        		dataType: "html",
+			data: {"action":"symptom-list" },
+        		// script call was successful 
+        		success: function(data){
+				$("#metadata-symptoms" ).empty();
+				$("#metadata-symptoms" ).append(data).trigger("create");
        			} // success
     		});
 	}
@@ -2546,10 +2985,6 @@ $( document ).ready(function()
 				//console.log("got response");
 				allMainPage.hide();
 				$( "#edge-content-report" ).html(data);
-				if (  /The project does not exist/.test(data)){ 
-					showWarning(data);
-					return;
-				}
 				$( "#edge-content-report div[data-role='popup']" ).popup();
 				$( "#edge-content-report > div[data-role='collapsible'] table " ).table();
 				$( "#edge-content-report > div[data-role='collapsible']" ).collapsible();
@@ -2573,29 +3008,46 @@ $( document ).ready(function()
 				showWarning("Failed to retrieve the report. Please REFRESH the page and try again."+data);
 			}
 		});
-	};
-	
-	//init Host list
-	$.getJSON( "data/host_list.json", function( data ) {
-                var genomeIds = Object.keys(data);
-                genomeIds.sort();
-
-                $.each( genomeIds, function( key, val ) {
-                        var name=val;
-                        name = name.replace(/_/g, " ");
-                        $("#edge-hostrm-file-fromlist").append($("<option value="+val+">"+name+"</option>"));
-                });
-                $("#edge-hostrm-file-fromlist").selectmenu( "refresh" );
-        });
-
-	//geo location
-	function loadGeoCompleteAction(){
-		$("#geocomplete").geocomplete({
-			map: ".map_canvas",
-			details: "form",
-			types: ["geocode", "establishment"],
-		});
 	}
 
+	function checkSampleMetadata(){
+    		$.ajax({
+    			type: "POST",
+			url: "./cgi-bin/edge_sample_metadata.cgi", 
+        		cache: false,
+        		dataType: "json",
+        		data: {"action": 'check' },
+				error: function(XMLHttpRequest, textStatus, errorThrown) { 
+         			console.log("ERROR");
+        		}, // error 
+        		// script call was successful 
+        		// data contains the JSON values returned by the cgi script 
+        		success: function(data){
+				//console.log("sample metadata is " + data.metadata);
+				if (data.metadata == "on") { // sample_metadata_bsve is on
+					//console.log("is on");
+					$( "#edge-sample-metadata" ).fadeIn('fast');
+					localStorage.metadata = true;
+          			} else { 
+					//console.log("is off");
+					$( "#edge-sample-metadata" ).fadeOut('fast');
+					localStorage.metadata = false;
+				}	
+       			} // success
+    		});
+	}
 //END sample metatdata	
+//EDGE tabs
+	$(".edge-tabs").find("a").not(".ui-btn-active").each(function(){
+		$("#"+ $(this).attr("data-id")).hide();
+	});
+	$(".edge-tabs").find("a").on('click', function(){
+		$(this).parent("div").siblings("div").find('a').each(function(){
+			$(this).removeClass('ui-btn-active');
+			$("#"+ $(this).attr("data-id")).hide();
+		});
+		$(this).addClass('ui-btn-active');
+		$("#"+ $(this).attr("data-id")).show();
+	});
+//END EDGE tabs
 });

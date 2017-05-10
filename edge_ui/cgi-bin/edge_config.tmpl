@@ -36,6 +36,8 @@ n=<TMPL_VAR NAME=edge-qc-n DEFAULT=0>
 lc=<TMPL_VAR NAME=edge-qc-lc DEFAULT=0.85>
 ## Trim reads with adapters or contamination sequences
 adapter=<TMPL_VAR NAME=edge-qc-adapter DEFAULT=>
+## Trim polyA (>15)
+polyA=<TMPL_VAR NAME=edge-qc-polyA DEFAULT=>
 ## phiX filter, boolean, 1=yes, 0=no
 ## phiX=<TMPL_VAR NAME=edge-qc-phix DEFAULT=0>
 ## Cut # bp from 5 end before quality trimming/filtering 
@@ -61,8 +63,8 @@ minContigSize=<TMPL_VAR NAME=edge-assembly-minc DEFAULT=200>
 assembler=<TMPL_VAR NAME=edge-assembler DEFAULT="idba_ud">
 idbaOptions="--pre_correction --mink <TMPL_VAR NAME=edge-assembly-mink DEFAULT=31> --maxk <TMPL_VAR NAME=edge-assembly-maxk DEFAULT=121> --step <TMPL_VAR NAME=edge-assembly-step DEFAULT=20> --min_contig <TMPL_VAR NAME=edge-assembly-minc DEFAULT=200>"
 ## for spades
-SpadesSingleCellMode=<TMPL_VAR NAME=edge-spades-sc-sw DEFAULT=0>
-SpadesMetagenomeMode=<TMPL_VAR NAME=edge-spades-mtg-sw DEFAULT=0>
+## support algorithm: default, singlecell,metagenome,plasmid,rna
+SpadesAlgorithm=<TMPL_VAR NAME=edge-spades-algorithm DEFAULT=default>
 SpadesPacbioFile=<TMPL_VAR NAME=edge-spades-pacbio-file>
 SpadesNanoporeFile=<TMPL_VAR NAME=edge-spades-nanopore-file>
 ## for megahit
@@ -95,6 +97,19 @@ DoReadsTaxonomy=<TMPL_VAR NAME=edge-taxa-sw DEFAULT=1>
 ## If reference genome exists, only use unmapped reads to do Taxonomy Classification. Turn on AllReads=1 will use all reads instead.
 AllReads=<TMPL_VAR NAME=edge-taxa-allreads DEFAULT=0>
 enabledTools=<TMPL_VAR NAME=edge-taxa-enabled-tools DEFAULT="bwa">
+custom-gottcha-genDB-b=<TMPL_VAR NAME=custom-gottcha-gendb-b>
+custom-gottcha-speDB-b=<TMPL_VAR NAME=custom-gottcha-spedb-b>
+custom-gottcha-strDB-b=<TMPL_VAR NAME=custom-gottcha-strdb-b>
+custom-gottcha-genDB-v=<TMPL_VAR NAME=custom-gottcha-gendb-v>
+custom-gottcha-speDB-v=<TMPL_VAR NAME=custom-gottcha-spedb-v>
+custom-gottcha-strDB-v=<TMPL_VAR NAME=custom-gottcha-strdb-v>
+custom-gottcha2-speDB-b=<TMPL_VAR NAME=custom-gottcha2-spedb-b>
+custom-gottcha2-genDB-v=<TMPL_VAR NAME=custom-gottcha2-gendb-v>
+custom-gottcha2-speDB-v=<TMPL_VAR NAME=custom-gottcha2-spedb-v>
+custom-bwa-db=<TMPL_VAR NAME=custom-bwa>
+custom-metaphlan-db=<TMPL_VAR NAME=custom-metaphlan>
+custom-kraken-db=<TMPL_VAR NAME=custom-kraken>
+custom-pangia-db=<TMPL_VAR NAME=custom-pangia>
 
 [Contigs Mapping To Reference]
 # Contig mapping to reference
