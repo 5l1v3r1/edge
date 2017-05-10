@@ -7,15 +7,23 @@ if [ -z ${EDGE_HOME+x} ]; then
 fi
 
 test_result(){
+	MainErrLog=$rootdir/TestOutput/error.log
+	TestLog=$rootdir/TestOutput/ReadsBasedAnalysis/Taxonomy/error.log
 	Test=$rootdir/TestOutput/ReadsBasedAnalysis/Taxonomy/report/summary.txt
 	Expect=$rootdir/summary.txt
+	Expect2=$rootdir/summary2.txt
+	Expect3=$rootdir/summary3.txt
 	testName="EDGE Reads Taxonomy test";
-	if cmp -s "$Test" "$Expect"
+	if cmp -s "$Test" "$Expect" || cmp -s "$Test" "$Expect2" || cmp -s "$Test" "$Expect3"
 	then
 		echo "$testName passed!"
 		touch "$rootdir/TestOutput/test.success"
 	else
 		echo "$testName failed!"
+		if [ -f "$TestLog" ]
+		then
+			cat $TestLog >> $MainErrLog
+		fi
 		touch "$rootdir/TestOutput/test.fail"
 	fi
 }

@@ -16,18 +16,20 @@ my %opt    = $cgi->Vars();
 my $username = $opt{username};
 my $password = $opt{password};
 my $action = lc($opt{action});
-my $pname = $opt{proj}; 
+my @pname = split /,/,$opt{proj}; 
 my $protocol = $opt{protocol};
 my $sid    = $opt{sid};
 $action   ||= $ARGV[0];
 $username ||= $ARGV[1];
 $password ||= $ARGV[2];
-$pname    ||= $ARGV[3];
+$pname[0] ||= $ARGV[3];
 $sid      ||= $ARGV[4];
 
-# read system params from config template
-my $config_tmpl  = "$RealBin/edge_config.tmpl";
-my $sys          = &getSysParamFromConfig( -e $opt{"edge-input-config"} ? $opt{"edge-input-config"} : $config_tmpl );
+# read system params from sys.properties
+my $sysconfig    = "$RealBin/../sys.properties";
+my $sys          = &getSysParamFromConfig($sysconfig);
+my $edgeui_admin = $sys->{edgeui_admin};
+my $edgeui_adminpw = $sys->{edgeui_admin_password}; 
 my $um_switch	 = $sys->{user_management};
 my $um_url       = $sys->{edge_user_management_url};
 my $edge_input   = $sys->{edgeui_input};
@@ -79,9 +81,16 @@ elsif ($action eq "login"){
 	unless( $info->{error} ){
 		my $sid = createSession($username,$password,$info->{type});
 		$info->{SESSION} = $sid;
+		my $user_dir_old=md5_hex($username);
 		my $user_dir=md5_hex(lc($username));
-		$info->{UserDir} = $user_dir; 
 		`mkdir -p $edge_input/$user_dir/MyProjects/`;
+		if ( $user_dir_old ne $user_dir && -d "$edge_input/$user_dir_old"){
+			`mv -f $edge_input/$user_dir_old/* $edge_input/$user_dir/`;
+			`rm -rf $edge_input/$user_dir_old`;
+		}   
+		$info->{UserDir} = $user_dir; 
+		my $cronjobs = `crontab -l 2>/dev/null`;
+		$info->{CleanData} = $sys->{edgeui_proj_store_days} if ($sys->{edgeui_proj_store_days} > 0 && $cronjobs =~ /edge_data_cleanup/);
 		`ln -sf $edge_input/public/data $edge_input/$user_dir/PublicData` if (! -e "$edge_input/$user_dir/PublicData");a
 		`ln -sf $edge_input/public/projects $edge_input/$user_dir/PublicProjects` if (! -e "$edge_input/$user_dir/PublicProjects");
 	}
@@ -105,8 +114,8 @@ elsif ($action eq "update"){
 elsif ($action eq "sociallogin"){
 	
 	my %admin_data = (
-                admin_email => "edge-admin\@lanl.gov",
-                admin_password => "852d13c37fec9f0ee004ac121abcf2c5"
+                admin_email => "$edgeui_admin",
+                admin_password => "$edgeui_adminpw"
         );
 	my $admin_data = to_json(\%admin_data);
 	&um_service($um_url,$admin_data,"WS/user/admin/getUsers");
@@ -148,11 +157,18 @@ elsif ($action eq "share" || $action eq "unshare"){
 	
 	if( $valid ){
 		my $service = ($action eq "share")? "WS/project/getNonguests":"WS/project/getGuests"; 
-		%data = (
-            email => $username,
+        %data = (
+			email => $username,
             password => $password,
-			project_id => $pname
-    	    );
+			project_id => $pname[0]
+			);
+		if (scalar(@pname)>1 || $pname[0] !~ /\d/ ){
+			$service = "WS/user/admin/getUsers"; 
+			%data = (
+            	admin_email => $edgeui_admin,
+            	admin_password => $edgeui_adminpw,
+    	    	);
+		}
     	my $data = to_json(\%data);
     	&um_service($um_url,$data,$service);
 	}
@@ -220,18 +236,18 @@ sub um_service {
 	my $result_json = $response->decoded_content;
 	print $result_json,"\n" if (@ARGV);
 	if ($result_json =~ /\"error_msg\":"(.*)"/)
-        {
-                $info->{error}=$1;
-                return;
-        }
+	{
+		$info->{error}=$1;
+		return;
+    }
 	if ($service =~ /login|getInfo/)
 	{
-        	my $tmp_r = from_json($result_json);
+		my $tmp_r = from_json($result_json);
 		$info->{$_} = $tmp_r->{$_} foreach (keys %$tmp_r);
 		
 	}else{
-        	my $array_ref =  from_json($result_json);
-		if ($service =~ /getUsers/){
+		my $array_ref =  from_json($result_json);
+		if ($action =~ /sociallogin/){
 			foreach (@$array_ref){
 				my $email=$_->{email};
 				$info->{"$email"} = 1;
