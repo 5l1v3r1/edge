@@ -176,7 +176,7 @@ $( document ).ready(function()
     		});
 	}
 	function replaceUMurl() {
-		var umhref = (umSystemURL.indexOf(location.hostname)>0 || umSystemURL.indexOf("localhost")>0)? location.protocol  + "//" + location.hostname + "/userManagement": umSystemURL;
+		var umhref = (umSystemURL.indexOf(location.hostname)>0 || umSystemURL.indexOf("localhost")>0)? location.protocol  + "//" + location.host + "/userManagement": umSystemURL;
 		$('#begin-password-reset').find('iframe').attr("src", umhref + "/resetPasswd.jsp");
 		$('#signUpForm').find('iframe').attr("src", umhref + "/register.jsp");
 		$('#UpdateProfileForm').find('iframe').attr("src", umhref + "/userUpdate.jsp");
@@ -559,9 +559,10 @@ $( document ).ready(function()
     	// batch input 
     	$('#edge-batch-sample-input').click( function(e) {
     		e.preventDefault();
-    		var sampleInput = "#each unique project name in the bracket []\n" + "[Project1]\n" + "#q1=/path/to/paired_end_file_1\n" + "q1=edgeui_input/testData/Ecoli_10x.1.fastq\n" + 
-    	                  "#q2=/path/to/paired_end_file_2\n" + "q2=edgeui_input/testData/Ecoli_10x.2.fastq\n" + "description=\"test batch input project 1\"\n";
-    		sampleInput = sampleInput + "[Project2]\n" + "#s=/path/to/single_end_file\n" + "s=edgeui_input/testData/Ecoli_10x.1.fastq\n" + "description=\"test batch input project 2\"\n";
+		var path = (umSystemStatus)? 'PublicData':'data';
+		var sampleInput = "#each unique project name in the bracket []\n" + "[Project1]\n" + "#q1=path/to/paired_end_file_1\n" + "q1=" + path + "/testData/Ecoli_10x.1.fastq\n" + 
+			"#q2=path/to/paired_end_file_2\n" + "q2=" + path + "/testData/Ecoli_10x.2.fastq\n" + "description=\"test batch input project 1\"\n";
+		sampleInput = sampleInput + "[Project2]\n" + "#s=path/to/single_end_file\n" + "s=" + path + "/testData/Ecoli_10x.1.fastq\n" + "description=\"test batch input project 2\"\n";
     		$('#edge-batch-text-input').val(sampleInput);
     		$('#edge-batch-text-input').textinput( "refresh" );
     		//$('#edge-batch-sample-input').hide();
@@ -709,6 +710,29 @@ $( document ).ready(function()
 			//alert('maximum fields reached')
 		}   
 	});
+	$('.btnAdd-edge-ref-file').click( function(e) {
+                e.preventDefault();
+                // how many "duplicatable" input fields we currently have
+                var num = $('.edge-ref-file-block').length;
+                console.log(num);       
+                // the numeric ID of the new input field being added    
+                var newNum      = new Number(num + 1);  
+                var newElem = $('#edge-ref-file-block' + num ).clone().attr('id', 'edge-ref-file-block' + newNum);
+                newElem.find('label:first').attr( 'for', 'edge-ref-file-' + newNum ).text('Reference genome (' + newNum + ')');
+                newElem.find('input:first').attr( 'id', 'edge-ref-file-' + newNum ).attr('name', 'edge-ref-file');
+                newElem.find('.btnAdd-edge-ref-file').remove();
+                // insert newElem
+                $('#edge-ref-file-block' + num).after(newElem);
+                        // bind the selector 
+                        newElem.find(".edge-file-selector").on( "click", function() {
+                        inputFileID = $(this).prevAll().children().prop("id");
+                });
+                // business rule: limit the number of fields to 5
+                if (newNum == 5) {
+                        $('.btnAdd-edge-ref-file' ).addClass('ui-disabled');
+                        //alert('maximum fields reached')
+                }   
+        });
 
 	$( ".edge-collapsible-options > select" ).on( "change", function() {
 		sync_input();

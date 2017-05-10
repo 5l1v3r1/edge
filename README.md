@@ -1,12 +1,12 @@
 # EDGE Bioinformatics
 
-This is version 1.1 of EDGE Bioinformatics, a product of collaboration between Los Alamos National Laboratory and the Naval Medical Research Center sponsored by the Defense Threat Reduction Agency.
+This is version 1.1.1 of EDGE Bioinformatics, a product of Los Alamos National Laboratory, Naval Medical Research Center, and the Defense Threat Reduction Agency.
 
-The EDGE package is available for demonstration and limited use at https://bioedge.lanl.gov/edge_ui/. Follow the "GUI" instructions from our documentation, found at https://edge.readthedocs.org/en/latest/introduction.html.
+EDGE is a highly adaptable bioinformatics platform that allows laboratories to quickly analyze and interpret genomic sequence data. The bioinformatics platform allows users to address a wide range of use cases including assay validation and the characterization of novel biological threats, clinical samples, and complex environmental samples.
 
-## Abstract
+A demonstration version of EDGE is currently available at https://bioedge.lanl.gov/ with example data sets available to the public to view and/or re-run and also allows EDGE runs of SRA/ENA data. (This webserver does not currently support upload of data due in part to LANL security regulations, however local installations are meant to be fully functional.) To run EDGE follow the "GUI" instructions from our documentation, found at https://edge.readthedocs.org/en/v1.1/introduction.html. It is also linked at the bottom of the EDGE homepage.
 
-Edge Bioinformatics is a developmental bioinformatics and data management platform which seeks to supply laboratories with bioinformatics pipelines for analyzing data associated with common samples case goals. Edge Bioinformatics enables sequencing as a solution and forward-deployed situations where human-resources, space, bandwidth, and time are limited. The Edge bioinformatics pipeline was designed based on following USE CASES and specific to illumina sequencing reads. 1. Assay performance adjudication (PCR): Analysis of an existing PCR assay in a genomic context, and automated design of a new assay to resolve conflicting results 2. Clinical presentation with extreme symptoms: Characterization of a known pathogen or co-infection with a. Novel emerging disease outbreak or b. Environmental surveillance
+For basic information about EDGE, visit the <a href="https://edge.readthedocs.io/en/latest/EDGE_ABCs.html" >EDGE ABC's</a>, that provide a brief overview of EDGE, the various workflows, and the computational environment restraints for local use.
 
 ## Documentation
 
@@ -17,11 +17,17 @@ Edge Bioinformatics is a developmental bioinformatics and data management platfo
 ## Contact Info
 Chien-Chi Lo: <chienchi@lanl.gov>  
 Paul Li: <po-e@lanl.gov>  
-Anderson, Joseph J. CIV: <Joseph.Anderson@dtra.mil>
+Joe Anderson (DTRA/NMRC): <joseph.j.anderson2.civ@mail.mil> 
 
 ## Citation
 
-Coming soon...
+Enabling the democratization of the genomics revolution with a fully integrated web-based bioinformatics platform 
+
+Po-E Li; Chien-Chi Lo; Joseph J. Anderson; Karen W. Davenport; Kimberly A. Bishop-Lilly; Yan Xu; Sanaa Ahmed; Shihai Feng; Vishwesh P. Mokashi; Patrick S.G. Chain
+
+Nucleic Acids Research 2016;
+
+[doi: 10.1093/nar/gkw1027] (http://nar.oxfordjournals.org/content/early/2016/11/28/nar.gkw1027.abstract?keytype=ref&ijkey=KzcEnQzdYkdjPCU)
 
 ## Copyright
 

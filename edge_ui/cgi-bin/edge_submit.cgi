@@ -64,6 +64,7 @@ my @edge_input_pe1 = split /[\x0]/, $opt{"edge-input-pe1[]"};
 my @edge_input_pe2 = split /[\x0]/, $opt{"edge-input-pe2[]"};
 my @edge_input_se  = split /[\x0]/, $opt{"edge-input-se[]"};
 my @edge_phylo_ref_input;
+my @edge_ref_input;
 #check session
 if( $sys->{user_management} ){
 	my $valid = verifySession($sid);
@@ -73,7 +74,7 @@ if( $sys->{user_management} ){
 	}
 	else{
 		($username,$password) = getCredentialsFromSession($sid);
-		$input_dir="$edge_input/". md5_hex($username);
+		$input_dir="$edge_input/". md5_hex(lc($username));
 	}
 }
 
@@ -81,7 +82,7 @@ if( $sys->{user_management} ){
 my $projlist;
 my @pnames;
 if ($opt{"edge-batch-text-input"}){
-	&readBatchInput();
+	$projlist=&readBatchInput();
 	@pnames = keys %{$projlist};
 }else{
 	push @pnames, $pname ;
@@ -179,7 +180,7 @@ sub createProjDir {
 	foreach my $pname (@pnames){
 		my $proj_dir = "$out_dir/$pname";
 		#init output directory
-		$excode = system("mkdir -m 777 -p $proj_dir");
+		$excode = system("mkdir -m 755 -p $proj_dir");
 
 		if( $excode || ! -d $proj_dir ){
 			&addMessage("CREATE_OUTPUT","failure","FAILED to create output directory.");
@@ -236,10 +237,10 @@ sub createConfig {
 		else{
 			if ( $opt{"edge-hostrm-sw"} )
 			{
-				my @hosts;
-				map { push @hosts, @{$hostlist->{$_}} } split /[\x0]/, $opt{"edge-hostrm-file-fromlist"} if defined $opt{"edge-hostrm-file-fromlist"};
-				push @hosts, $opt{"edge-hostrm-file"} if (defined $opt{"edge-hostrm-file"} && -e $opt{"edge-hostrm-file"});
-				$opt{"edge-hostrm-file"} = join ",", @hosts;
+				my %hosts;
+				map { foreach my $h (@{$hostlist->{$_}}){$hosts{$h}=1;} } split /[\x0]/, $opt{"edge-hostrm-file-fromlist"} if defined $opt{"edge-hostrm-file-fromlist"};
+				$hosts{$opt{"edge-hostrm-file"}}=1 if (defined $opt{"edge-hostrm-file"} && -e $opt{"edge-hostrm-file"});
+				$opt{"edge-hostrm-file"} = join ",", keys %hosts;
 			} 
 
 			if ( $opt{"edge-ref-sw"} )
@@ -247,13 +248,14 @@ sub createConfig {
 				my (@refs,@refsl);
 				if( defined $opt{"edge-ref-file-fromlist"}){
 					@refsl = split /[\x0]/, $opt{"edge-ref-file-fromlist"};
-					my @gpaths = map { "$EDGE_HOME/database/NCBI_genomes/$_*/*.gbk" } @refsl;
-					my $gpathsl = join " ", @gpaths;
-					my @gfiles = `ls $gpathsl`;
-					chomp @gfiles;
-					push @refs, @gfiles;
+					map {	my @tmp= `ls -d $EDGE_HOME/database/NCBI_genomes/$_*`;
+						chomp @tmp;
+						my @gfiles = `ls $tmp[0]/*gbk`;
+						chomp @gfiles;
+						push @refs,@gfiles;
+					} @refsl;
 				}
-				push @refs, $opt{"edge-ref-file"} if (defined $opt{"edge-ref-file"} && -e $opt{"edge-ref-file"});
+				push @refs, @edge_ref_input if @edge_ref_input;
 				$opt{"edge-ref-file"} = join ",", @refs;
 			}
 			if ($opt{"edge-phylo-sw"})
@@ -267,8 +269,8 @@ sub createConfig {
 			$opt{"edge-taxa-enabled-tools"} =~ s/[\x0]/,/g if $opt{"edge-taxa-sw"};
 			$opt{'edge-sra-acc'} = uc $opt{'edge-sra-acc'};
 			$opt{'edge-phylo-sra-acc'} = uc $opt{'edge-phylo-sra-acc'};
-
-      		       $opt{"edge-proj-desc"} = $projlist->{$pname}->{"description"} if ($opt{"edge-batch-text-input"});
+			$opt{"edge-proj-desc"} = $projlist->{$pname}->{"description"} if ($opt{"edge-batch-text-input"});
+			$opt{"edge-proj-name"} = $projlist->{$pname}->{"REALNAME"} if ($opt{"edge-batch-text-input"});
 
 			eval {
 				my $template = HTML::Template->new(filename => $config_tmpl, die_on_bad_params => 0 );
@@ -309,8 +311,8 @@ sub runPipeline {
 		my $process_parameters = "-c $config_out -o $proj_dir -cpu $num_cpu -noColorLog ";
     	
  	   	if ($opt{"edge-batch-text-input"}){
-    			$paired_files = qq|$projlist->{$pname}->{"q1"} $projlist->{$pname}->{"q2"}|; 
-    			$single_files = $projlist->{$pname}->{"s"};
+    			$paired_files = qq|$projlist->{$pname}->{"q1"} $projlist->{$pname}->{"q2"}| if (-f $projlist->{$pname}->{"q1"});
+    			$single_files = $projlist->{$pname}->{"s"} if (-f $projlist->{$pname}->{"s"});
     	}else{
 			for (0..$#edge_input_pe1)
 			{
@@ -362,7 +364,7 @@ sub addProjToDB{
 		}else{
 			$desc = $opt{"edge-proj-desc"};
 		}
-
+		$desc =~ s/(['"])/\\$1/g;
 		my %data = (
 			email => $username,
    			password => $password,
@@ -405,6 +407,7 @@ sub addProjToDB{
 sub availableToRun {
 	my $num_cpu = shift;
 	my $cpu_been_used = 0;
+	return 0 if ($num_cpu > $sys->{edgeui_tol_cpu});
 	if( $sys->{edgeui_auto_queue} && $sys->{edgeui_tol_cpu} ){
 		foreach my $pid ( keys %$vital ){
 			$cpu_been_used += $vital->{$pid}->{CPU};
@@ -477,16 +480,16 @@ sub checkParams {
 	if ($num_cpu > $edge_total_cpu){
 		&addMessage("PARAMS","edge-proj-cpu","The max number of CPU for the EDGE Server is $edge_total_cpu.");
 	}
-	if ( ($opt{"edge-batch-text-input"}) and ($opt{"edge-proj-desc"} or $opt{"edge-input-pe1[]"} or $opt{"edge-input-pe2[]"} or $opt{"edge-input-se[]"})){
+	if ( ($opt{"edge-batch-text-input"}) and ($opt{"edge-proj-desc"} or $opt{"edge-input-pe1[]"} or $opt{"edge-input-pe2[]"} or $opt{"edge-input-se[]"} or $opt{"edge-sra-acc"})){
 		&addMessage("PARAMS","edge-input-sequence","Input error. You have both single project input and batch input.");
     	}
       
 	if (  $opt{"edge-batch-text-input"} ){ ## batch input
     		my %namesUsed;
 		foreach my $pname (keys %{$projlist}){
-			$projlist->{$pname}->{"q1"} =~ s/edgeui_input/$edge_input\/public\/data/;
-    			$projlist->{$pname}->{"q2"} =~ s/edgeui_input/$edge_input\/public\/data/;
-    			$projlist->{$pname}->{"s"} =~ s/edgeui_input/$edge_input\/public\/data/;
+			$projlist->{$pname}->{"q1"} = "$input_dir/$projlist->{$pname}->{'q1'}";
+			$projlist->{$pname}->{"q2"} = "$input_dir/$projlist->{$pname}->{'q2'}";
+			$projlist->{$pname}->{"s"} = "$input_dir/$projlist->{$pname}->{'s'}";
     			my $pe1=$projlist->{$pname}->{"q1"};
     			my $pe2=$projlist->{$pname}->{"q2"};
     			my $se=$projlist->{$pname}->{"s"};
@@ -498,14 +501,14 @@ sub checkParams {
     			}
     			&addMessage("PARAMS","edge-batch-text-input","Invalid project name. Only alphabets, numbers and underscore are allowed in project name.") if ($pname =~ /\W/);
     			&addMessage("PARAMS","edge-batch-text-input","Invalid project name. Please input at least 3 characters.") if (length($pname) < 3);
-    			&addMessage("PARAMS","edge-batch-text-input","Invalid characters detected in $pe1 of $pname.") if ($pe1 and $pe1 =~ /[\<\>\!\~\@\#\$\^\&\;\*\(\)\"\' ]/);
-    			&addMessage("PARAMS","edge-batch-text-input","Invalid characters detected in $pe2 of $pname.") if ($pe2 and $pe2 =~ /[\<\>\!\~\@\#\$\^\&\;\*\(\)\"\' ]/);
-    			&addMessage("PARAMS","edge-batch-text-input","Invalid characters detected in $pe2 of $pname.") if ($se and $se =~ /[\<\>\!\~\@\#\$\^\&\;\*\(\)\"\' ]/);
-    			&addMessage("PARAMS","edge-batch-text-input","Input error. Please check the q1 file path of $pname.") if ($pe1 && $pe1 !~ /^[http|ftp]/i && ! -e $pe1);
-    			&addMessage("PARAMS","edge-batch-text-input","Input error. Please check the q2 file path of $pname.") if ($pe2 && $pe2 !~ /^[http|ftp]/i && ! -e $pe2);
-    			&addMessage("PARAMS","edge-batch-text-input","Input error. q1 and q2 are identical of $pname.") if ($pe1 && $pe1 eq $pe2);
-    			&addMessage("PARAMS","edge-batch-text-input","Input error. Please check the s file path of $pname.") if ($se && $se !~ /^[http|ftp]/i && ! -e $se);
-    			&addMessage("PARAMS","edge-batch-text-input","Input error. Please check the input file path of $pname.") if (!$se && ! $pe1 && ! $pe2);
+    			&addMessage("PARAMS","edge-batch-text-input","Invalid characters detected in $pe1 of $pname.") if ( -f $pe1 and $pe1 =~ /[\<\>\!\~\@\#\$\^\&\;\*\(\)\"\' ]/);
+    			&addMessage("PARAMS","edge-batch-text-input","Invalid characters detected in $pe2 of $pname.") if ( -f $pe2 and $pe2 =~ /[\<\>\!\~\@\#\$\^\&\;\*\(\)\"\' ]/);
+    			&addMessage("PARAMS","edge-batch-text-input","Invalid characters detected in $pe2 of $pname.") if ( -f $se and $se =~ /[\<\>\!\~\@\#\$\^\&\;\*\(\)\"\' ]/);
+    			&addMessage("PARAMS","edge-batch-text-input","Input error. Please check the q1 file path of $pname.") if ( -f $pe1 && $pe1 !~ /^[http|ftp]/i && ! -e $pe1);
+    			&addMessage("PARAMS","edge-batch-text-input","Input error. Please check the q2 file path of $pname.") if ( -f $pe2 && $pe2 !~ /^[http|ftp]/i && ! -e $pe2);
+    			&addMessage("PARAMS","edge-batch-text-input","Input error. q1 and q2 are identical of $pname.") if ( -f $pe1 && $pe1 eq $pe2);
+    			&addMessage("PARAMS","edge-batch-text-input","Input error. Please check the s file path of $pname.") if (-f $se && $se !~ /^[http|ftp]/i && ! -e $se);
+    			&addMessage("PARAMS","edge-batch-text-input","Input error. Please check the input file path of $pname.") if (! -f $se && ! -f $pe1 && ! -f $pe2);
     		}
 	}else{  ## Single project input
 		my %files;		
@@ -579,7 +582,15 @@ sub checkParams {
 		$opt{"edge-ref-file"} = $input_dir."/".$opt{"edge-ref-file"} if ( $opt{"edge-ref-file"} =~ /^\w/ );
 		&addMessage("PARAMS","edge-ref-file","Reference not found. Please check the input referecne.") if( !-e $opt{"edge-ref-file"} && !defined $opt{"edge-ref-file-fromlist"});
 		&addMessage("PARAMS","edge-ref-file-fromlist","Reference not found. Please check the input referecne.") if( !-e $opt{"edge-ref-file"} && !defined $opt{"edge-ref-file-fromlist"});
-		&addMessage("PARAMS","edge-ref-file","Invalid input. Fasta or Genbank format required") if ( -e $opt{"edge-ref-file"} && ! is_fasta($opt{"edge-ref-file"}) && ! is_genbank($opt{"edge-ref-file"}) );
+		if ($opt{"edge-ref-file"}){
+			@edge_ref_input = split /[\x0]/, $opt{"edge-ref-file"} if defined $opt{"edge-ref-file"};
+			for my $i (0..$#edge_ref_input){
+				$edge_ref_input[$i] = $input_dir."/".$edge_ref_input[$i] if ($edge_ref_input[$i]=~ /^\w/);
+				my $id = 'edge-ref-file-'. ($i + 1);
+				&addMessage("PARAMS",$id,"Invalid input. Fasta or Genbank format required") if ( -e $edge_ref_input[$i] && ! is_fasta($edge_ref_input[$i]) && ! is_genbank($edge_ref_input[$i]));
+			}
+		}
+
 	}
 	if ( $opt{"edge-taxa-sw"} && scalar split(/[\x0]/,$opt{"edge-taxa-enabled-tools"}) < 1 ){
 		&addMessage("PARAMS","edge-taxa-tools","You need to choose at least one tool.");
@@ -660,7 +671,7 @@ sub checkParams {
 			for my $i (0..$#edge_phylo_ref_input){
 				$edge_phylo_ref_input[$i] = $input_dir."/".$edge_phylo_ref_input[$i] if ($edge_phylo_ref_input[$i]=~ /^\w/);
 				my $id = 'edge-phylo-ref-file-'. ($i + 1);
-				&addMessage("PARAMS",$id,"Invalid input. Genbank format required") if ( -e $edge_phylo_ref_input[$i] && ! is_fasta($edge_phylo_ref_input[$i]) );
+				&addMessage("PARAMS",$id,"Invalid input. Fasta format required") if ( -e $edge_phylo_ref_input[$i] && ! is_fasta($edge_phylo_ref_input[$i]) );
 			}
 		}
 	}
